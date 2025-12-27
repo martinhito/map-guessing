@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { GameState, Attempt, GuessResponse, HintResponse } from "@/lib/types";
+import { GameState, Attempt, GuessResponse, HintResponse, PuzzleResponse } from "@/lib/types";
 import {
   fetchPuzzle,
   submitGuess,
@@ -9,6 +9,42 @@ import {
   fetchAttempts,
   fetchRevealedHints,
 } from "@/lib/api";
+
+const CACHE_KEY = "map_guess_cache";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface CachedData {
+  puzzle: PuzzleResponse;
+  timestamp: number;
+}
+
+function getCachedPuzzle(): PuzzleResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const data: CachedData = JSON.parse(cached);
+    // Check if cache is still valid and same day
+    const now = Date.now();
+    const today = new Date().toISOString().split("T")[0];
+    if (now - data.timestamp < CACHE_TTL && data.puzzle.id === today) {
+      return data.puzzle;
+    }
+  } catch {
+    // Invalid cache
+  }
+  return null;
+}
+
+function setCachedPuzzle(puzzle: PuzzleResponse): void {
+  if (typeof window === "undefined") return;
+  try {
+    const data: CachedData = { puzzle, timestamp: Date.now() };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // Storage full or unavailable
+  }
+}
 
 const initialState: GameState = {
   puzzle: null,
@@ -25,9 +61,20 @@ export function useGame() {
   const [state, setState] = useState<GameState>(initialState);
 
   const loadPuzzle = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    // Try to show cached puzzle immediately
+    const cached = getCachedPuzzle();
+    if (cached) {
+      setState((prev) => ({ ...prev, puzzle: cached, loading: true }));
+    } else {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+    }
+
     try {
-      const puzzle = await fetchPuzzle();
+      // Fetch puzzle (or use cached if valid)
+      const puzzle = cached || await fetchPuzzle();
+      if (!cached) {
+        setCachedPuzzle(puzzle);
+      }
 
       // Fetch existing attempts and hints for this puzzle
       const [attemptsData, hintsData] = await Promise.all([
