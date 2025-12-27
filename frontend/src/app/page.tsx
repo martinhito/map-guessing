@@ -169,7 +169,7 @@ export default function GamePage() {
       {showResult && (
         <ResultModal
           solved={solved}
-          answer={answer || puzzle.answer}
+          answer={answer || ""}
           attempts={attempts}
           maxGuesses={maxGuesses}
           threshold={puzzle.similarityThreshold}
