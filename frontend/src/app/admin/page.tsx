@@ -234,6 +234,41 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: "12px",
     color: "var(--foreground)",
   },
+  modeSelection: {
+    marginBottom: "8px",
+  },
+  modeCards: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "12px",
+    marginTop: "8px",
+  },
+  modeCard: {
+    padding: "16px",
+    backgroundColor: "var(--background)",
+    borderRadius: "12px",
+    border: "2px solid var(--border)",
+    cursor: "pointer",
+    textAlign: "center" as const,
+    transition: "all 0.2s",
+  },
+  modeCardActive: {
+    borderColor: "var(--primary)",
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+  },
+  modeCardIcon: {
+    fontSize: "1.5rem",
+    marginBottom: "8px",
+  },
+  modeCardTitle: {
+    fontSize: "0.9375rem",
+    fontWeight: 600,
+    marginBottom: "4px",
+  },
+  modeCardDesc: {
+    fontSize: "0.75rem",
+    color: "var(--muted)",
+  },
 };
 
 export default function AdminPage() {
@@ -591,15 +626,74 @@ export default function AdminPage() {
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>Upload Map Image</h2>
               <div style={styles.form}>
-                <div>
-                  <label style={styles.label}>Puzzle ID (Date)</label>
-                  <input
-                    type="date"
-                    value={puzzleDate}
-                    onChange={(e) => setPuzzleDate(e.target.value)}
-                    style={styles.input}
-                  />
+                {/* Mode Selection - Prominent at top */}
+                <div style={styles.modeSelection}>
+                  <label style={styles.label}>What's this puzzle for?</label>
+                  <div style={styles.modeCards}>
+                    <div
+                      onClick={() => {
+                        setScheduleForDaily(true);
+                        setAddToEndlessPool(false);
+                      }}
+                      style={{
+                        ...styles.modeCard,
+                        ...(scheduleForDaily && !addToEndlessPool ? styles.modeCardActive : {}),
+                      }}
+                    >
+                      <div style={styles.modeCardIcon}>📅</div>
+                      <div style={styles.modeCardTitle}>Daily Puzzle</div>
+                      <div style={styles.modeCardDesc}>Schedule for a specific date</div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setAddToEndlessPool(true);
+                        setScheduleForDaily(false);
+                      }}
+                      style={{
+                        ...styles.modeCard,
+                        ...(addToEndlessPool && !scheduleForDaily ? styles.modeCardActive : {}),
+                      }}
+                    >
+                      <div style={styles.modeCardIcon}>♾️</div>
+                      <div style={styles.modeCardTitle}>Endless Pool</div>
+                      <div style={styles.modeCardDesc}>Add to random rotation</div>
+                    </div>
+                    <div
+                      onClick={() => {
+                        setAddToEndlessPool(true);
+                        setScheduleForDaily(true);
+                      }}
+                      style={{
+                        ...styles.modeCard,
+                        ...(addToEndlessPool && scheduleForDaily ? styles.modeCardActive : {}),
+                      }}
+                    >
+                      <div style={styles.modeCardIcon}>📅♾️</div>
+                      <div style={styles.modeCardTitle}>Both</div>
+                      <div style={styles.modeCardDesc}>Daily + Endless pool</div>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Date Selection */}
+                {scheduleForDaily && (
+                  <div>
+                    <label style={styles.label}>Scheduled Date</label>
+                    <input
+                      type="date"
+                      value={scheduledDate || puzzleDate}
+                      onChange={(e) => {
+                        setScheduledDate(e.target.value);
+                        setPuzzleDate(e.target.value);
+                      }}
+                      style={styles.input}
+                    />
+                    <p style={{ ...styles.subtitle, fontSize: "0.75rem", marginTop: "4px" }}>
+                      This puzzle will appear on this date
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label style={styles.label}>Map Image</label>
                   <input
@@ -621,14 +715,19 @@ export default function AdminPage() {
                 )}
                 <button
                   onClick={handleUploadImage}
-                  disabled={!selectedFile || uploading}
+                  disabled={!selectedFile || uploading || (!scheduleForDaily && !addToEndlessPool)}
                   style={{
                     ...styles.button,
-                    ...(!selectedFile || uploading ? styles.buttonDisabled : {}),
+                    ...(!selectedFile || uploading || (!scheduleForDaily && !addToEndlessPool) ? styles.buttonDisabled : {}),
                   }}
                 >
                   {uploading ? "Uploading..." : "Upload Image"}
                 </button>
+                {!scheduleForDaily && !addToEndlessPool && (
+                  <p style={{ ...styles.error, marginTop: "8px" }}>
+                    Please select a mode above
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -816,39 +915,19 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Mode Options */}
+              {/* Mode Summary */}
               <div style={styles.modeOptions}>
-                <div style={styles.modeOptionsTitle}>Game Mode Options</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <label style={styles.checkbox}>
-                    <input
-                      type="checkbox"
-                      checked={addToEndlessPool}
-                      onChange={(e) => setAddToEndlessPool(e.target.checked)}
-                      style={styles.checkboxInput}
-                    />
-                    <span>Add to Endless Mode Pool</span>
-                  </label>
-
-                  <div>
-                    <label style={styles.checkbox}>
-                      <input
-                        type="checkbox"
-                        checked={scheduleForDaily}
-                        onChange={(e) => setScheduleForDaily(e.target.checked)}
-                        style={styles.checkboxInput}
-                      />
-                      <span>Schedule for Daily Mode</span>
-                    </label>
-                    {scheduleForDaily && (
-                      <input
-                        type="date"
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        style={{ ...styles.input, marginTop: "8px", maxWidth: "200px" }}
-                      />
-                    )}
-                  </div>
+                <div style={styles.modeOptionsTitle}>Publishing To</div>
+                <div style={{ fontSize: "0.9375rem" }}>
+                  {scheduleForDaily && addToEndlessPool && (
+                    <span>📅 Daily ({scheduledDate || puzzleDate}) + ♾️ Endless Pool</span>
+                  )}
+                  {scheduleForDaily && !addToEndlessPool && (
+                    <span>📅 Daily puzzle for {scheduledDate || puzzleDate}</span>
+                  )}
+                  {!scheduleForDaily && addToEndlessPool && (
+                    <span>♾️ Endless Pool only</span>
+                  )}
                 </div>
               </div>
 
