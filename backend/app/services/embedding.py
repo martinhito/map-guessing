@@ -30,6 +30,29 @@ class EmbeddingService:
         data = response.json()
         return data["data"][0]["embedding"]
 
+    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Get embedding vectors for multiple texts in a single API call."""
+        if not texts:
+            return []
+
+        response = await self.client.post(
+            self.EMBEDDING_URL,
+            headers={
+                "Authorization": f"Bearer {self.settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.settings.embedding_model,
+                "input": texts,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Sort by index to maintain order
+        sorted_data = sorted(data["data"], key=lambda x: x["index"])
+        return [item["embedding"] for item in sorted_data]
+
     async def close(self):
         await self.client.aclose()
 

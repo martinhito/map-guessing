@@ -2,6 +2,12 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 
+class AnswerVariant(BaseModel):
+    """An answer variant with its embedding"""
+    text: str
+    embedding: List[float]
+
+
 class PuzzleMetadata(BaseModel):
     """Puzzle data stored in S3"""
     id: str
@@ -9,7 +15,8 @@ class PuzzleMetadata(BaseModel):
     answer: str
     maxGuesses: int = 6
     similarityThreshold: float = 0.95
-    answerEmbedding: List[float]
+    answerEmbedding: List[float]  # Keep for backwards compatibility
+    answerVariants: Optional[List[AnswerVariant]] = None  # New: synonyms with embeddings
     hints: Optional[List[str]] = None
 
 

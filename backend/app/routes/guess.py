@@ -64,10 +64,20 @@ async def submit_guess(
             attemptsUsed=game_state.total_guesses,
         )
 
-    # Calculate similarity
+    # Calculate similarity against all answer variants
     guess_text = request.guess.strip()
     guess_embedding = await embedding_service.embed(guess_text)
-    similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
+
+    # Check against all variants and take the best match
+    best_similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
+
+    if puzzle.answerVariants:
+        for variant in puzzle.answerVariants:
+            variant_similarity = cosine_similarity(variant.embedding, guess_embedding)
+            if variant_similarity > best_similarity:
+                best_similarity = variant_similarity
+
+    similarity = best_similarity
     is_correct = similarity >= puzzle.similarityThreshold
 
     # Record attempt

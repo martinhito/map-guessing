@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.services.embedding import get_embedding_service, EmbeddingService
+from app.services.llm import get_llm_service, LLMService
 from app.services.s3 import get_s3_service, S3PuzzleService
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -43,6 +44,18 @@ async def verify_password(x_admin_password: Optional[str] = Header(None)):
     if x_admin_password == ADMIN_PASSWORD:
         return {"valid": True}
     return {"valid": False}
+
+
+@router.post("/generate-synonyms")
+async def generate_synonyms(
+    answer: str = Form(...),
+    count: int = Form(10),
+    _: bool = Depends(verify_admin),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    """Generate synonym phrases for an answer."""
+    synonyms = await llm_service.generate_synonyms(answer, count=count)
+    return {"synonyms": synonyms}
 
 
 @router.post("/upload-image")
@@ -109,9 +122,10 @@ async def create_puzzle(
     imageUrl: str = Form(...),
     answer: str = Form(...),
     hints: str = Form(""),  # Comma-separated hints
+    synonyms: str = Form(""),  # JSON array of synonym strings
     date: str = Form(None),
     maxGuesses: int = Form(6),
-    similarityThreshold: float = Form(0.95),
+    similarityThreshold: float = Form(0.85),
     _: bool = Depends(verify_admin),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ):
@@ -124,8 +138,41 @@ async def create_puzzle(
     # Parse hints (comma-separated)
     hints_list = [h.strip() for h in hints.split(",") if h.strip()] if hints else []
 
-    # Calculate embedding for the answer
-    answer_embedding = await embedding_service.embed(answer)
+    # Parse synonyms (JSON array)
+    synonyms_list = []
+    if synonyms:
+        try:
+            synonyms_list = json.loads(synonyms)
+        except json.JSONDecodeError:
+            pass
+
+    # Build list of all texts to embed (answer + synonyms)
+    all_texts = [answer]
+    clean_synonyms = [s.strip() for s in synonyms_list if s and s.strip()]
+    all_texts.extend(clean_synonyms)
+
+    # Batch embed all texts in a single API call
+    try:
+        all_embeddings = await embedding_service.embed_batch(all_texts)
+
+        # First embedding is for the answer
+        answer_embedding = all_embeddings[0]
+
+        # Build answer variants from results
+        answer_variants = [{"text": answer, "embedding": answer_embedding}]
+        for i, synonym in enumerate(clean_synonyms):
+            answer_variants.append({
+                "text": synonym,
+                "embedding": all_embeddings[i + 1]
+            })
+    except Exception as e:
+        # If batch fails, try just the answer
+        print(f"Batch embedding failed: {e}, trying answer only")
+        try:
+            answer_embedding = await embedding_service.embed(answer)
+            answer_variants = [{"text": answer, "embedding": answer_embedding}]
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=f"Failed to embed answer: {e2}")
 
     # Create puzzle metadata
     puzzle_data = {
@@ -134,7 +181,8 @@ async def create_puzzle(
         "answer": answer,
         "maxGuesses": maxGuesses,
         "similarityThreshold": similarityThreshold,
-        "answerEmbedding": answer_embedding,
+        "answerEmbedding": answer_embedding,  # Keep for backwards compatibility
+        "answerVariants": answer_variants,  # New: all variants with embeddings
         "hints": hints_list if hints_list else None,
     }
 
@@ -199,6 +247,49 @@ async def list_puzzles(
         # Sort by ID (date) descending
         puzzles.sort(key=lambda x: x["id"], reverse=True)
 
-        return {"puzzles": puzzles}
+        # Get active puzzle ID
+        s3_service = get_s3_service()
+        active_id = s3_service.get_active_puzzle_id()
+
+        return {"puzzles": puzzles, "activePuzzleId": active_id}
     except Exception as e:
         return {"puzzles": [], "error": str(e)}
+
+
+@router.get("/active-puzzle")
+async def get_active_puzzle(
+    _: bool = Depends(verify_admin),
+):
+    """Get the currently active puzzle ID."""
+    s3_service = get_s3_service()
+    active_id = s3_service.get_active_puzzle_id()
+    today_id = s3_service.get_today_puzzle_id()
+
+    return {
+        "activePuzzleId": active_id,
+        "effectivePuzzleId": active_id or today_id,
+        "todayPuzzleId": today_id,
+    }
+
+
+@router.post("/active-puzzle")
+async def set_active_puzzle(
+    puzzleId: Optional[str] = Form(None),
+    _: bool = Depends(verify_admin),
+):
+    """Set the active puzzle ID. Pass empty/null to clear and use date-based default."""
+    s3_service = get_s3_service()
+
+    # Empty string or None clears the active puzzle
+    puzzle_id = puzzleId if puzzleId and puzzleId.strip() else None
+
+    s3_service.set_active_puzzle_id(puzzle_id)
+
+    today_id = s3_service.get_today_puzzle_id()
+
+    return {
+        "success": True,
+        "activePuzzleId": puzzle_id,
+        "effectivePuzzleId": puzzle_id or today_id,
+        "message": f"Active puzzle set to {puzzle_id}" if puzzle_id else "Active puzzle cleared (using date-based default)",
+    }

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     s3_puzzle_prefix: str = "puzzles/"
 
     # Game settings
-    default_similarity_threshold: float = 0.95
+    default_similarity_threshold: float = 0.85
     max_guesses: int = 6
 
     # Database

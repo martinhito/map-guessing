@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, KeyboardEvent } from "react";
+import { CSSProperties, KeyboardEvent, useRef, useEffect } from "react";
 
 interface Props {
   value: string;
@@ -10,10 +10,66 @@ interface Props {
   placeholder?: string;
 }
 
+export default function GuessInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  placeholder = "Enter your guess...",
+}: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!disabled && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [disabled]);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !disabled && value.trim()) {
+      onSubmit();
+    }
+  };
+
+  return (
+    <div style={styles.container}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        style={{
+          ...styles.input,
+          ...(disabled ? styles.inputDisabled : {}),
+        }}
+      />
+      <button
+        onClick={onSubmit}
+        disabled={disabled || !value.trim()}
+        style={{
+          ...styles.button,
+          ...(disabled || !value.trim() ? styles.buttonDisabled : {}),
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 const styles: Record<string, CSSProperties> = {
   container: {
     display: "flex",
-    gap: "12px",
+    gap: "8px",
     width: "100%",
   },
   input: {
@@ -25,61 +81,27 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: "var(--card-bg)",
     color: "var(--foreground)",
     outline: "none",
-    transition: "border-color 0.2s",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  },
+  inputDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
   },
   button: {
-    padding: "14px 24px",
-    fontSize: "1rem",
-    fontWeight: 600,
-    backgroundColor: "var(--primary)",
+    width: "52px",
+    height: "52px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--correct)",
     color: "white",
     border: "none",
     borderRadius: "8px",
-    transition: "background-color 0.2s",
+    transition: "background-color 0.2s, transform 0.1s",
+    flexShrink: 0,
   },
   buttonDisabled: {
     backgroundColor: "var(--muted)",
     cursor: "not-allowed",
   },
 };
-
-export default function GuessInput({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-  placeholder = "Enter your guess...",
-}: Props) {
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !disabled && value.trim()) {
-      onSubmit();
-    }
-  };
-
-  return (
-    <div style={styles.container}>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={disabled}
-        style={{
-          ...styles.input,
-          ...(disabled ? { opacity: 0.6 } : {}),
-        }}
-      />
-      <button
-        onClick={onSubmit}
-        disabled={disabled || !value.trim()}
-        style={{
-          ...styles.button,
-          ...(disabled || !value.trim() ? styles.buttonDisabled : {}),
-        }}
-      >
-        Guess
-      </button>
-    </div>
-  );
-}

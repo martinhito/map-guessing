@@ -12,6 +12,8 @@ from app.models.puzzle import PuzzleMetadata
 class S3PuzzleService:
     """S3 client for fetching puzzle data."""
 
+    ACTIVE_PUZZLE_KEY = "puzzles/active.json"
+
     def __init__(self):
         self.settings = get_settings()
         self.s3_client = boto3.client(
@@ -40,14 +42,53 @@ class S3PuzzleService:
             raise
 
     def _resolve_puzzle_id(self, puzzle_id: Optional[str]) -> str:
-        """Resolve puzzle ID - 'latest' or None returns today's date."""
+        """Resolve puzzle ID - 'latest' or None checks active puzzle, then today's date."""
         if puzzle_id and puzzle_id.lower() not in ("latest", ""):
             return puzzle_id
+
+        # Check for active puzzle override
+        active_id = self.get_active_puzzle_id()
+        if active_id:
+            return active_id
+
         return self.get_today_puzzle_id()
 
     def get_today_puzzle_id(self) -> str:
         """Get today's puzzle ID based on UTC date."""
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def get_active_puzzle_id(self) -> Optional[str]:
+        """Get the currently active puzzle ID from S3."""
+        try:
+            response = self.s3_client.get_object(
+                Bucket=self.settings.s3_bucket_name,
+                Key=self.ACTIVE_PUZZLE_KEY,
+            )
+            content = response["Body"].read().decode("utf-8")
+            data = json.loads(content)
+            return data.get("activePuzzleId")
+        except ClientError:
+            return None
+
+    def set_active_puzzle_id(self, puzzle_id: Optional[str]) -> None:
+        """Set the active puzzle ID in S3. Pass None to clear."""
+        if puzzle_id:
+            content = json.dumps({"activePuzzleId": puzzle_id})
+            self.s3_client.put_object(
+                Bucket=self.settings.s3_bucket_name,
+                Key=self.ACTIVE_PUZZLE_KEY,
+                Body=content.encode("utf-8"),
+                ContentType="application/json",
+            )
+        else:
+            # Clear active puzzle - delete the file
+            try:
+                self.s3_client.delete_object(
+                    Bucket=self.settings.s3_bucket_name,
+                    Key=self.ACTIVE_PUZZLE_KEY,
+                )
+            except ClientError:
+                pass
 
 
 # Singleton instance
