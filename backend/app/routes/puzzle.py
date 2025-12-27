@@ -47,10 +47,11 @@ def get_or_set_player_id(
 async def get_daily_puzzle(
     response: Response,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Get today's challenge (image + hint count, not answer)."""
-    player_id = get_or_set_player_id(response, player_id)
+    player_id = get_or_set_player_id(response, player_id, x_player_id)
 
     try:
         puzzle = s3_service.get_puzzle()
@@ -74,10 +75,11 @@ async def get_puzzle_by_id(
     puzzle_id: str,
     response: Response,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Get a specific puzzle by ID."""
-    player_id = get_or_set_player_id(response, player_id)
+    player_id = get_or_set_player_id(response, player_id, x_player_id)
 
     try:
         puzzle = s3_service.get_puzzle(puzzle_id)
@@ -100,15 +102,17 @@ async def get_puzzle_by_id(
 async def get_user_attempts(
     puzzle_id: str,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     """Get user's attempts for a specific puzzle."""
-    if not player_id:
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
         return AttemptsResponse(attempts=[], gameState=None)
 
     attempt_service = AttemptService(db)
-    attempts = attempt_service.get_user_attempts(player_id, puzzle_id)
-    game_state = attempt_service.get_game_state(player_id, puzzle_id)
+    attempts = attempt_service.get_user_attempts(effective_player_id, puzzle_id)
+    game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
 
     return AttemptsResponse(
         attempts=[
