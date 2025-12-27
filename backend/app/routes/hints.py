@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Cookie, HTTPException
+from fastapi import APIRouter, Depends, Cookie, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -15,11 +15,13 @@ router = APIRouter(prefix="/api", tags=["hints"])
 async def get_hint(
     puzzle_id: str,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
     db: Session = Depends(get_db),
 ):
     """Get next hint for the puzzle."""
-    if not player_id:
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")
 
     try:
@@ -31,14 +33,14 @@ async def get_hint(
         raise HTTPException(status_code=404, detail="No hints available for this puzzle")
 
     attempt_service = AttemptService(db)
-    game_state = attempt_service.get_game_state(player_id, puzzle_id)
+    game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
     hints_revealed = game_state.hints_revealed if game_state else 0
 
     if hints_revealed >= len(puzzle.hints):
         raise HTTPException(status_code=400, detail="All hints already revealed")
 
     # Record hint usage and get next hint
-    new_hint_count = attempt_service.record_hint_used(player_id, puzzle_id)
+    new_hint_count = attempt_service.record_hint_used(effective_player_id, puzzle_id)
     hint_index = new_hint_count - 1
 
     return HintResponse(
@@ -52,11 +54,13 @@ async def get_hint(
 async def get_revealed_hints(
     puzzle_id: str,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
     db: Session = Depends(get_db),
 ):
     """Get all previously revealed hints for the puzzle."""
-    if not player_id:
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
         return {"hints": [], "hintsRemaining": 0}
 
     try:
@@ -65,7 +69,7 @@ async def get_revealed_hints(
         raise HTTPException(status_code=404, detail=str(e))
 
     attempt_service = AttemptService(db)
-    game_state = attempt_service.get_game_state(player_id, puzzle_id)
+    game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
     hints_revealed = game_state.hints_revealed if game_state else 0
 
     revealed_hints = puzzle.hints[:hints_revealed] if puzzle.hints else []

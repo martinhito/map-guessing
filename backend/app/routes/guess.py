@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Cookie, HTTPException
+from fastapi import APIRouter, Depends, Cookie, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -18,13 +18,16 @@ async def submit_guess(
     puzzle_id: str,
     request: GuessRequest,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
     db: Session = Depends(get_db),
 ):
     """Submit a guess and get similarity score."""
-    if not player_id:
-        raise HTTPException(status_code=400, detail="Player ID required (cookie missing)")
+    # Accept player ID from header (mobile) or cookie (desktop)
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
+        raise HTTPException(status_code=400, detail="Player ID required")
 
     if not request.guess or not request.guess.strip():
         raise HTTPException(status_code=400, detail="Guess cannot be empty")
@@ -38,7 +41,7 @@ async def submit_guess(
     attempt_service = AttemptService(db)
 
     # Check current game state
-    game_state = attempt_service.get_game_state(player_id, puzzle_id)
+    game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
 
     # Already solved
     if game_state and game_state.solved:
@@ -82,7 +85,7 @@ async def submit_guess(
 
     # Record attempt
     updated_state = attempt_service.record_attempt(
-        user_id=player_id,
+        user_id=effective_player_id,
         puzzle_date=puzzle_id,
         guess_text=guess_text,
         similarity_score=similarity,
@@ -114,13 +117,15 @@ async def submit_guess(
 async def reset_game(
     puzzle_id: str,
     player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     """Reset game state for debugging (localhost only)."""
-    if not player_id:
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")
 
     attempt_service = AttemptService(db)
-    attempt_service.reset_game(player_id, puzzle_id)
+    attempt_service.reset_game(effective_player_id, puzzle_id)
 
     return {"success": True, "message": f"Game reset for puzzle {puzzle_id}"}

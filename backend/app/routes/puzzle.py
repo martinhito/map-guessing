@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Response, Cookie, HTTPException
+from fastapi import APIRouter, Depends, Response, Cookie, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -12,19 +12,35 @@ from app.services.attempts import AttemptService
 router = APIRouter(prefix="/api", tags=["puzzle"])
 
 
-def get_or_set_player_id(response: Response, player_id: Optional[str] = Cookie(None)) -> str:
-    """Get existing player ID or create a new one."""
-    if not player_id:
-        player_id = f"p_{uuid4().hex}"
-        response.set_cookie(
-            key="player_id",
-            value=player_id,
-            max_age=365 * 24 * 60 * 60,  # 1 year
-            httponly=True,
-            samesite="none",
-            secure=True,  # Required for samesite=none
-        )
-    return player_id
+def get_or_set_player_id(
+    response: Response,
+    player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
+) -> str:
+    """Get existing player ID from header, cookie, or create a new one."""
+    # Prefer header (for mobile/cross-domain), fall back to cookie
+    existing_id = x_player_id or player_id
+
+    if existing_id:
+        return existing_id
+
+    # Create new player ID
+    new_id = f"p_{uuid4().hex}"
+
+    # Set cookie for desktop browsers that support it
+    response.set_cookie(
+        key="player_id",
+        value=new_id,
+        max_age=365 * 24 * 60 * 60,  # 1 year
+        httponly=True,
+        samesite="none",
+        secure=True,
+    )
+
+    # Also set a header so frontend can store it
+    response.headers["X-Player-ID"] = new_id
+
+    return new_id
 
 
 @router.get("/puzzle", response_model=PuzzleResponse)
