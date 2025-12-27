@@ -21,7 +21,8 @@ def get_or_set_player_id(response: Response, player_id: Optional[str] = Cookie(N
             value=player_id,
             max_age=365 * 24 * 60 * 60,  # 1 year
             httponly=True,
-            samesite="lax",
+            samesite="none",
+            secure=True,  # Required for samesite=none
         )
     return player_id
 

@@ -1,16 +1,22 @@
 import { Metadata } from "next";
 import GameClient from "./GameClient";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Use server-side API URL if set, otherwise fall back to public URL
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function getPuzzleForMetadata() {
   try {
     const res = await fetch(`${API_URL}/api/puzzle`, {
-      next: { revalidate: 60 }, // Revalidate every minute
+      next: { revalidate: 300 }, // Revalidate every 5 minutes
+      cache: "force-cache",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("Failed to fetch puzzle for metadata:", res.status);
+      return null;
+    }
     return res.json();
-  } catch {
+  } catch (e) {
+    console.error("Error fetching puzzle for metadata:", e);
     return null;
   }
 }

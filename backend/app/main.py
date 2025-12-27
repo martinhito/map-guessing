@@ -31,7 +31,9 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://localhost:3050",
         "http://127.0.0.1:3050",
-        "https://map-guessing.vercel.app",  # Production
+        "https://map-guessing.vercel.app",
+        "https://canyouguessthemap.com",  # Production
+        "https://www.canyouguessthemap.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
