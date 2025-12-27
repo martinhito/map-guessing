@@ -65,7 +65,7 @@ export function useGame() {
 
   const makeGuess = useCallback(
     async (guess: string): Promise<GuessResponse | undefined> => {
-      if (!state.puzzle || state.gameOver || state.loading) return;
+      if (!state.puzzle || state.gameOver) return;
 
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
@@ -95,9 +95,10 @@ export function useGame() {
           error:
             error instanceof Error ? error.message : "Failed to submit guess",
         }));
+        return undefined;
       }
     },
-    [state.puzzle, state.gameOver, state.loading]
+    [state.puzzle, state.gameOver]
   );
 
   const revealHint = useCallback(async (): Promise<HintResponse | undefined> => {

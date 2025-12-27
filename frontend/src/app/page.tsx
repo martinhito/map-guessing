@@ -38,11 +38,8 @@ export default function GamePage() {
       if (result.correct || remainingGuesses <= 1) {
         setTimeout(() => setShowResult(true), 500);
       }
-    } else {
-      // Shake on error
-      setShakeInput(true);
-      setTimeout(() => setShakeInput(false), 500);
     }
+    // Don't shake - errors are shown via the error state
   };
 
   const headerContent = (
