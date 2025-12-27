@@ -27,7 +27,7 @@ export default function AttemptHistory({ attempts, threshold, maxGuesses }: Prop
           <p style={styles.emptyText}>Your guesses will appear here</p>
           <div style={styles.emptyHint}>
             <span style={{ ...styles.colorDot, backgroundColor: "var(--correct)" }} /> Correct
-            <span style={{ ...styles.colorDot, backgroundColor: "var(--close)", marginLeft: "12px" }} /> Close
+            <span style={{ ...styles.colorDot, backgroundColor: "var(--close)", marginLeft: "12px" }} /> Hot
             <span style={{ ...styles.colorDot, backgroundColor: "var(--warm)", marginLeft: "12px" }} /> Warm
             <span style={{ ...styles.colorDot, backgroundColor: "var(--cold)", marginLeft: "12px" }} /> Cold
           </div>
@@ -107,7 +107,7 @@ function getTemperatureStyle(ratio: number): {
       bg: "var(--close-bg)",
       border: "var(--close)",
       color: "var(--close)",
-      label: "Very close",
+      label: "Hot",
     };
   }
   if (ratio >= 0.5) {
