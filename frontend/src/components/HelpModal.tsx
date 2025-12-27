@@ -34,43 +34,43 @@ export default function HelpModal({ onClose }: Props) {
 
         <div style={styles.section}>
           <p style={styles.text}>
-            Guess what the map is showing in 6 tries.
+            Figure out what the map is showing. You have 5 guesses to get it right.
           </p>
         </div>
 
         <div style={styles.section}>
           <p style={styles.text}>
-            Each guess must describe what you think the map represents. After each guess, you'll see how close you were.
+            Type what you think the map represents and hit enter. The color shows how close your guess was to the answer.
           </p>
         </div>
 
         <div style={styles.divider} />
 
-        <h3 style={styles.subtitle}>Examples</h3>
+        <h3 style={styles.subtitle}>What the colors mean</h3>
 
         <div style={styles.exampleList}>
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--correct)" }} />
             <div style={styles.exampleText}>
-              <strong>100%</strong> — You got it! The answer is correct.
+              <strong>Green</strong> — Nailed it!
             </div>
           </div>
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--close)" }} />
             <div style={styles.exampleText}>
-              <strong>80-99%</strong> — Very close! You're almost there.
+              <strong>Yellow</strong> — So close, keep going
             </div>
           </div>
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--warm)" }} />
             <div style={styles.exampleText}>
-              <strong>50-79%</strong> — Warm. You're on the right track.
+              <strong>Orange</strong> — Getting warmer
             </div>
           </div>
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--cold)" }} />
             <div style={styles.exampleText}>
-              <strong>Below 50%</strong> — Cold. Try a different approach.
+              <strong>Gray</strong> — Try something different
             </div>
           </div>
         </div>
@@ -79,7 +79,7 @@ export default function HelpModal({ onClose }: Props) {
 
         <div style={styles.section}>
           <p style={styles.textSmall}>
-            A new map is available each day. Use hints if you get stuck!
+            New puzzle every day. Stuck? Use a hint!
           </p>
         </div>
       </div>
