@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, useEffect, useState } from "react";
+import { CSSProperties, useEffect, useState, useRef } from "react";
 import { Attempt } from "@/lib/types";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   maxGuesses: number;
   threshold: number;
   puzzleId: string;
+  imageUrl: string;
   onClose: () => void;
 }
 
@@ -20,20 +21,33 @@ export default function ResultModal({
   maxGuesses,
   threshold,
   puzzleId,
+  imageUrl,
   onClose,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const [animate, setAnimate] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     setAnimate(true);
   }, []);
 
-  const generateShareText = () => {
-    const emoji = solved ? getResultEmoji(attempts.length, maxGuesses) : "X";
-    const header = `Can You Guess the Map? ${puzzleId} ${emoji}/${maxGuesses}`;
+  // Reverse attempts so oldest is first (left to right)
+  const orderedAttempts = [...attempts].reverse();
 
-    const grid = attempts.map((attempt) => {
+  const getColor = (similarity: number) => {
+    const ratio = similarity / threshold;
+    if (ratio >= 1) return { css: "var(--correct)", hex: "#22c55e" };
+    if (ratio >= 0.8) return { css: "var(--close)", hex: "#eab308" };
+    if (ratio >= 0.5) return { css: "var(--warm)", hex: "#f97316" };
+    return { css: "var(--cold)", hex: "#3b3b3b" };
+  };
+
+  const generateShareText = (includeUrl = true) => {
+    const result = solved ? `${attempts.length}/${maxGuesses}` : `X/${maxGuesses}`;
+
+    const grid = orderedAttempts.map((attempt) => {
       const ratio = attempt.similarity / threshold;
       if (ratio >= 1) return "🟩";
       if (ratio >= 0.8) return "🟨";
@@ -41,26 +55,202 @@ export default function ResultModal({
       return "⬛";
     }).join("");
 
-    return `${header}\n${grid}`;
+    const base = `Can You Guess the Map?
+
+Puzzle ${puzzleId}
+${grid} ${result}`;
+
+    return includeUrl ? `${base}
+
+https://canyouguessthemap.com` : base;
+  };
+
+  const generateShareImage = async (): Promise<Blob | null> => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // Canvas dimensions
+    const width = 400;
+    const height = 520;
+    const padding = 20;
+    const mapSize = width - padding * 2;
+    const blockSize = 40;
+    const blockGap = 6;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Background
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(0, 0, width, height);
+
+    // Helper to draw overlay (text, blocks, result)
+    const drawOverlay = () => {
+      // Draw title
+      const titleY = padding + mapSize + 32;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 20px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Can You Guess the Map?", width / 2, titleY);
+
+      // Draw guess blocks
+      const totalBlocksWidth = maxGuesses * blockSize + (maxGuesses - 1) * blockGap;
+      const blocksStartX = (width - totalBlocksWidth) / 2;
+      const blocksY = titleY + 20;
+
+      for (let i = 0; i < maxGuesses; i++) {
+        const x = blocksStartX + i * (blockSize + blockGap);
+        const attempt = orderedAttempts[i];
+
+        if (attempt) {
+          ctx.fillStyle = getColor(attempt.similarity).hex;
+        } else {
+          ctx.fillStyle = "#2a2a3e";
+          ctx.strokeStyle = "#444";
+          ctx.lineWidth = 2;
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(x, blocksY, blockSize, blockSize, 6);
+        ctx.fill();
+
+        if (!attempt) {
+          ctx.stroke();
+        }
+      }
+
+      // Draw result
+      const resultText = solved
+        ? `${attempts.length}/${maxGuesses}`
+        : `X/${maxGuesses}`;
+      const resultY = blocksY + blockSize + 28;
+      ctx.font = "bold 18px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = solved ? "#22c55e" : "#ef4444";
+      ctx.fillText(resultText, width / 2, resultY);
+    };
+
+    // Load and draw the map image
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        // Draw map with rounded corners
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(padding, padding, mapSize, mapSize, 12);
+        ctx.clip();
+
+        const scale = Math.max(mapSize / img.width, mapSize / img.height);
+        const scaledWidth = img.width * scale;
+        const scaledHeight = img.height * scale;
+        const offsetX = padding + (mapSize - scaledWidth) / 2;
+        const offsetY = padding + (mapSize - scaledHeight) / 2;
+
+        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+        ctx.restore();
+
+        drawOverlay();
+
+        canvas.toBlob((blob) => resolve(blob), "image/png");
+      };
+
+      img.onerror = () => {
+        // Draw placeholder
+        ctx.fillStyle = "#2a2a3e";
+        ctx.beginPath();
+        ctx.roundRect(padding, padding, mapSize, mapSize, 12);
+        ctx.fill();
+
+        ctx.fillStyle = "#666";
+        ctx.font = "16px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Map Puzzle", width / 2, padding + mapSize / 2);
+
+        drawOverlay();
+
+        canvas.toBlob((blob) => resolve(blob), "image/png");
+      };
+
+      img.src = imageUrl;
+    });
   };
 
   const handleShare = async () => {
-    const text = generateShareText();
+    setGenerating(true);
 
     try {
-      await navigator.clipboard.writeText(text);
+      const blob = await generateShareImage();
+
+      // Try native share with image (mobile/iOS)
+      if (blob && navigator.share && navigator.canShare) {
+        const file = new File([blob], `map-guess-${puzzleId}.png`, { type: "image/png" });
+
+        // Share URL with results text (link preview will show map from OG tags)
+        const shareData: ShareData = {
+          text: generateShareText(false),
+          url: "https://canyouguessthemap.com",
+        };
+
+        if (navigator.canShare(shareData)) {
+          try {
+            await navigator.share(shareData);
+            setGenerating(false);
+            return;
+          } catch (e) {
+            // User cancelled or share failed - fall through to text-only
+            if ((e as Error).name === "AbortError") {
+              setGenerating(false);
+              return;
+            }
+          }
+        }
+
+        // Try text-only share
+        try {
+          await navigator.share({ text: generateShareText(true) });
+          setGenerating(false);
+          return;
+        } catch {
+          // Fall through to clipboard
+        }
+      }
+
+      // Desktop/fallback: copy image to clipboard if possible
+      if (blob && navigator.clipboard && typeof ClipboardItem !== "undefined") {
+        try {
+          const clipboardItem = new ClipboardItem({
+            "image/png": blob,
+          });
+          await navigator.clipboard.write([clipboardItem]);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 3000);
+          setGenerating(false);
+          return;
+        } catch {
+          // Fall through to text copy
+        }
+      }
+
+      // Fallback: just copy text
+      const fullText = generateShareText(true);
+      await navigator.clipboard.writeText(fullText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      // Ultimate fallback
+      try {
+        await navigator.clipboard.writeText(generateShareText(true));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        console.error("Share failed", error);
+      }
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -73,6 +263,9 @@ export default function ResultModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Hidden canvas for image generation */}
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+
         {/* Close button */}
         <button style={styles.closeBtn} onClick={onClose}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -110,10 +303,12 @@ export default function ResultModal({
           )}
         </div>
 
-        {/* Answer reveal */}
-        <div style={styles.answerBox}>
-          <p style={styles.answer}>{answer}</p>
-        </div>
+        {/* Answer reveal - only show if failed */}
+        {!solved && (
+          <div style={styles.answerBox}>
+            <p style={styles.answer}>{answer}</p>
+          </div>
+        )}
 
         {/* Stats grid */}
         <div style={styles.statsGrid}>
@@ -129,24 +324,25 @@ export default function ResultModal({
           </div>
         </div>
 
-        {/* Guess visualization */}
+        {/* Guess visualization - oldest first (left to right) */}
         <div style={styles.guessViz}>
-          {attempts.map((attempt, i) => {
-            const ratio = attempt.similarity / threshold;
-            let color = "var(--cold)";
-            if (ratio >= 1) color = "var(--correct)";
-            else if (ratio >= 0.8) color = "var(--close)";
-            else if (ratio >= 0.5) color = "var(--warm)";
-
+          {orderedAttempts.map((attempt, i) => {
+            const isWinningGuess = attempt.similarity / threshold >= 1;
             return (
               <div
                 key={i}
                 style={{
                   ...styles.guessBlock,
-                  backgroundColor: color,
+                  backgroundColor: getColor(attempt.similarity).css,
                 }}
                 title={`${Math.round(attempt.similarity * 100)}%`}
-              />
+              >
+                {isWinningGuess && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
             );
           })}
           {/* Empty slots */}
@@ -156,13 +352,25 @@ export default function ResultModal({
         </div>
 
         {/* Share button */}
-        <button style={styles.shareBtn} onClick={handleShare}>
-          {copied ? (
+        <button
+          style={{
+            ...styles.shareBtn,
+            ...(generating ? styles.shareBtnDisabled : {}),
+          }}
+          onClick={handleShare}
+          disabled={generating}
+        >
+          {generating ? (
+            <>
+              <div style={styles.spinner} />
+              Generating...
+            </>
+          ) : copied ? (
             <>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              Copied!
+              Image Copied!
             </>
           ) : (
             <>
@@ -178,16 +386,6 @@ export default function ResultModal({
       </div>
     </div>
   );
-}
-
-function getResultEmoji(guesses: number, max: number): string {
-  if (guesses === 1) return "1";
-  if (guesses === 2) return "2";
-  if (guesses === 3) return "3";
-  if (guesses === 4) return "4";
-  if (guesses === 5) return "5";
-  if (guesses === 6) return "6";
-  return guesses.toString();
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -225,6 +423,7 @@ const styles: Record<string, CSSProperties> = {
     color: "var(--muted)",
     padding: "4px",
     borderRadius: "4px",
+    cursor: "pointer",
   },
   resultHeader: {
     textAlign: "center",
@@ -290,6 +489,9 @@ const styles: Record<string, CSSProperties> = {
     height: "32px",
     borderRadius: "4px",
     transition: "transform 0.2s",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   guessBlockEmpty: {
     width: "32px",
@@ -313,5 +515,18 @@ const styles: Record<string, CSSProperties> = {
     gap: "8px",
     textTransform: "uppercase",
     letterSpacing: "0.05em",
+    cursor: "pointer",
+  },
+  shareBtnDisabled: {
+    opacity: 0.7,
+    cursor: "wait",
+  },
+  spinner: {
+    width: "18px",
+    height: "18px",
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "white",
+    borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
   },
 };

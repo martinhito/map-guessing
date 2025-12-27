@@ -46,6 +46,7 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
         <img
           src={imageUrl}
           alt={`Map puzzle ${puzzleId}`}
+          crossOrigin="anonymous"
           style={{
             ...styles.image,
             opacity: loaded ? 1 : 0,

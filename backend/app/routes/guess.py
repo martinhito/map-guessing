@@ -65,7 +65,7 @@ async def submit_guess(
         )
 
     # Calculate similarity against all answer variants
-    guess_text = request.guess.strip()
+    guess_text = request.guess.strip().lower()
     guess_embedding = await embedding_service.embed(guess_text)
 
     # Check against all variants and take the best match
@@ -108,3 +108,19 @@ async def submit_guess(
         answer=puzzle.answer if game_over else None,
         attemptsUsed=updated_state.total_guesses,
     )
+
+
+@router.post("/puzzle/{puzzle_id}/reset")
+async def reset_game(
+    puzzle_id: str,
+    player_id: Optional[str] = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    """Reset game state for debugging (localhost only)."""
+    if not player_id:
+        raise HTTPException(status_code=400, detail="Player ID required")
+
+    attempt_service = AttemptService(db)
+    attempt_service.reset_game(player_id, puzzle_id)
+
+    return {"success": True, "message": f"Game reset for puzzle {puzzle_id}"}

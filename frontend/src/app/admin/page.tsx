@@ -1,26 +1,37 @@
 "use client";
 
 import { useState, useEffect, CSSProperties, FormEvent } from "react";
+import EndlessPoolView from "./components/EndlessPoolView";
+import CalendarView from "./components/CalendarView";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+type Tab = "create" | "endless" | "calendar";
+
 const styles: Record<string, CSSProperties> = {
   container: {
-    maxWidth: "800px",
+    maxWidth: "900px",
     margin: "0 auto",
     padding: "24px 16px",
     minHeight: "100vh",
   },
   header: {
-    marginBottom: "32px",
+    marginBottom: "24px",
+  },
+  headerTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "16px",
   },
   title: {
     fontSize: "1.75rem",
     fontWeight: 700,
-    marginBottom: "8px",
+    marginBottom: "4px",
   },
   subtitle: {
     color: "var(--muted)",
+    fontSize: "0.875rem",
   },
   loginBox: {
     maxWidth: "400px",
@@ -106,8 +117,33 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "0.875rem",
     marginTop: "8px",
   },
+  tabBar: {
+    display: "flex",
+    gap: "4px",
+    marginBottom: "24px",
+    backgroundColor: "var(--border)",
+    padding: "4px",
+    borderRadius: "10px",
+  },
+  tab: {
+    flex: 1,
+    padding: "12px 16px",
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    color: "var(--muted)",
+    transition: "all 0.2s",
+  },
+  tabActive: {
+    backgroundColor: "var(--card-bg)",
+    color: "var(--foreground)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+  },
   section: {
-    marginBottom: "32px",
+    marginBottom: "24px",
     padding: "24px",
     backgroundColor: "var(--card-bg)",
     borderRadius: "12px",
@@ -149,21 +185,6 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: "var(--success)",
     color: "white",
   },
-  puzzleList: {
-    listStyle: "none",
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-    marginTop: "16px",
-  },
-  puzzleItem: {
-    padding: "12px 16px",
-    backgroundColor: "var(--background)",
-    borderRadius: "8px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   synonymList: {
     listStyle: "none",
     display: "flex",
@@ -190,12 +211,36 @@ const styles: Record<string, CSSProperties> = {
     gap: "8px",
     marginTop: "8px",
   },
+  checkbox: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    cursor: "pointer",
+  },
+  checkboxInput: {
+    width: "18px",
+    height: "18px",
+    cursor: "pointer",
+  },
+  modeOptions: {
+    marginTop: "16px",
+    padding: "16px",
+    backgroundColor: "var(--background)",
+    borderRadius: "8px",
+  },
+  modeOptionsTitle: {
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    marginBottom: "12px",
+    color: "var(--foreground)",
+  },
 };
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [activeTab, setActiveTab] = useState<Tab>("create");
 
   // Upload state
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -207,8 +252,13 @@ export default function AdminPage() {
   );
   const [answer, setAnswer] = useState("");
   const [hints, setHints] = useState("");
-  const [maxGuesses, setMaxGuesses] = useState(6);
+  const [maxGuesses, setMaxGuesses] = useState(5);
   const [threshold, setThreshold] = useState(0.85);
+
+  // Mode options
+  const [addToEndlessPool, setAddToEndlessPool] = useState(false);
+  const [scheduleForDaily, setScheduleForDaily] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState("");
 
   // Synonyms
   const [synonyms, setSynonyms] = useState<string[]>([]);
@@ -221,13 +271,6 @@ export default function AdminPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
-
-  // Existing puzzles
-  const [puzzles, setPuzzles] = useState<
-    { id: string; lastModified: string }[]
-  >([]);
-  const [activePuzzleId, setActivePuzzleId] = useState<string | null>(null);
-  const [settingActive, setSettingActive] = useState<string | null>(null);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -244,60 +287,8 @@ export default function AdminPage() {
     if (data.valid) {
       setIsAuthenticated(true);
       localStorage.setItem("adminPassword", password);
-      loadPuzzles(password);
     } else {
       setAuthError("Invalid password");
-    }
-  };
-
-  const loadPuzzles = async (pwd: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/admin/puzzles`, {
-        headers: {
-          "X-Admin-Password": pwd,
-        },
-      });
-      const data = await response.json();
-      setPuzzles(data.puzzles || []);
-      setActivePuzzleId(data.activePuzzleId || null);
-    } catch (e) {
-      console.error("Failed to load puzzles", e);
-    }
-  };
-
-  const handleSetActivePuzzle = async (puzzleId: string | null) => {
-    setSettingActive(puzzleId || "clear");
-    setMessage(null);
-
-    const formData = new FormData();
-    if (puzzleId) {
-      formData.append("puzzleId", puzzleId);
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/admin/active-puzzle`, {
-        method: "POST",
-        headers: {
-          "X-Admin-Password": password,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to set active puzzle");
-      }
-
-      const data = await response.json();
-      setActivePuzzleId(data.activePuzzleId);
-      setMessage({ type: "success", text: data.message });
-    } catch (e) {
-      setMessage({
-        type: "error",
-        text: e instanceof Error ? e.message : "Failed to set active puzzle",
-      });
-    } finally {
-      setSettingActive(null);
     }
   };
 
@@ -314,7 +305,6 @@ export default function AdminPage() {
         .then((data) => {
           if (data.valid) {
             setIsAuthenticated(true);
-            loadPuzzles(stored);
           }
         });
     }
@@ -431,6 +421,10 @@ export default function AdminPage() {
     formData.append("date", puzzleDate);
     formData.append("maxGuesses", maxGuesses.toString());
     formData.append("similarityThreshold", threshold.toString());
+    formData.append("inEndlessPool", addToEndlessPool.toString());
+    if (scheduleForDaily && scheduledDate) {
+      formData.append("scheduledDate", scheduledDate);
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/admin/create-puzzle`, {
@@ -460,9 +454,9 @@ export default function AdminPage() {
       setAnswer("");
       setHints("");
       setSynonyms([]);
-
-      // Reload puzzles
-      loadPuzzles(password);
+      setAddToEndlessPool(false);
+      setScheduleForDaily(false);
+      setScheduledDate("");
     } catch (e) {
       setMessage({
         type: "error",
@@ -510,16 +504,10 @@ export default function AdminPage() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+        <div style={styles.headerTop}>
           <div>
             <h1 style={styles.title}>Puzzle Admin</h1>
-            <p style={styles.subtitle}>Upload and manage daily puzzles</p>
+            <p style={styles.subtitle}>Manage puzzles and game modes</p>
           </div>
           <button
             onClick={handleLogout}
@@ -528,393 +516,375 @@ export default function AdminPage() {
             Logout
           </button>
         </div>
+
+        {/* Tab Bar */}
+        <div style={styles.tabBar}>
+          <button
+            onClick={() => setActiveTab("create")}
+            style={{
+              ...styles.tab,
+              ...(activeTab === "create" ? styles.tabActive : {}),
+            }}
+          >
+            Create Puzzle
+          </button>
+          <button
+            onClick={() => setActiveTab("endless")}
+            style={{
+              ...styles.tab,
+              ...(activeTab === "endless" ? styles.tabActive : {}),
+            }}
+          >
+            Endless Pool
+          </button>
+          <button
+            onClick={() => setActiveTab("calendar")}
+            style={{
+              ...styles.tab,
+              ...(activeTab === "calendar" ? styles.tabActive : {}),
+            }}
+          >
+            Daily Calendar
+          </button>
+        </div>
       </header>
 
-      <div style={styles.stepIndicator}>
-        <span
-          style={{
-            ...styles.step,
-            ...(step === 1 ? styles.stepActive : {}),
-            ...(uploadedImageUrl ? styles.stepComplete : {}),
-          }}
-        >
-          1. Upload Image
-        </span>
-        <span
-          style={{
-            ...styles.step,
-            ...(step === 2 ? styles.stepActive : {}),
-            ...(step === 3 ? styles.stepComplete : {}),
-          }}
-        >
-          2. Set Answer
-        </span>
-        <span
-          style={{
-            ...styles.step,
-            ...(step === 3 ? styles.stepActive : {}),
-          }}
-        >
-          3. Edit Synonyms & Create
-        </span>
-      </div>
-
-      {message && (
-        <p style={message.type === "success" ? styles.success : styles.error}>
-          {message.text}
-        </p>
-      )}
-
-      {step === 1 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Upload Map Image</h2>
-          <div style={styles.form}>
-            <div>
-              <label style={styles.label}>Puzzle Date</label>
-              <input
-                type="date"
-                value={puzzleDate}
-                onChange={(e) => setPuzzleDate(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Map Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                style={styles.fileInput}
-              />
-            </div>
-            {previewUrl && (
-              <div>
-                <p style={styles.label}>Preview:</p>
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  style={styles.previewImage}
-                />
-              </div>
-            )}
-            <button
-              onClick={handleUploadImage}
-              disabled={!selectedFile || uploading}
+      {/* Tab Content */}
+      {activeTab === "create" && (
+        <>
+          <div style={styles.stepIndicator}>
+            <span
               style={{
-                ...styles.button,
-                ...(!selectedFile || uploading ? styles.buttonDisabled : {}),
+                ...styles.step,
+                ...(step === 1 ? styles.stepActive : {}),
+                ...(uploadedImageUrl ? styles.stepComplete : {}),
               }}
             >
-              {uploading ? "Uploading..." : "Upload Image"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Set Answer</h2>
-          {uploadedImageUrl && (
-            <div style={{ marginBottom: "16px" }}>
-              <p style={styles.label}>Uploaded Image:</p>
-              <img
-                src={uploadedImageUrl}
-                alt="Uploaded"
-                style={styles.previewImage}
-              />
-            </div>
-          )}
-          <div style={styles.form}>
-            <div>
-              <label style={styles.label}>Answer *</label>
-              <input
-                type="text"
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                style={styles.input}
-                placeholder="e.g., Median household income by US county"
-              />
-              <p
-                style={{
-                  ...styles.subtitle,
-                  fontSize: "0.75rem",
-                  marginTop: "4px",
-                }}
-              >
-                This is what users need to guess.
-              </p>
-            </div>
-            <div>
-              <label style={styles.label}>Hints (comma-separated)</label>
-              <textarea
-                value={hints}
-                onChange={(e) => setHints(e.target.value)}
-                style={styles.textarea}
-                placeholder="This map shows economic data, The data is measured in dollars, Look at the regional patterns"
-              />
-            </div>
-            <div style={{ display: "flex", gap: "16px" }}>
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Max Guesses</label>
-                <input
-                  type="number"
-                  value={maxGuesses}
-                  onChange={(e) => setMaxGuesses(parseInt(e.target.value))}
-                  style={styles.input}
-                  min={1}
-                  max={20}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={styles.label}>Similarity Threshold</label>
-                <input
-                  type="number"
-                  value={threshold}
-                  onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                  style={styles.input}
-                  min={0.5}
-                  max={1}
-                  step={0.01}
-                />
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                style={{ ...styles.button, ...styles.buttonSecondary }}
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleGenerateSynonyms}
-                disabled={!answer || generatingSynonyms}
-                style={{
-                  ...styles.button,
-                  flex: 1,
-                  ...(!answer || generatingSynonyms
-                    ? styles.buttonDisabled
-                    : {}),
-                }}
-              >
-                {generatingSynonyms ? "Generating..." : "Generate Synonyms →"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {step === 3 && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>Edit Synonyms & Create Puzzle</h2>
-          {uploadedImageUrl && (
-            <div style={{ marginBottom: "16px" }}>
-              <p style={styles.label}>Image:</p>
-              <img
-                src={uploadedImageUrl}
-                alt="Uploaded"
-                style={{ ...styles.previewImage, maxHeight: "150px" }}
-              />
-            </div>
-          )}
-          <div style={{ marginBottom: "16px" }}>
-            <p style={styles.label}>Answer:</p>
-            <p style={{ fontWeight: 500 }}>{answer}</p>
-          </div>
-
-          <div>
-            <label style={styles.label}>
-              Synonyms ({synonyms.length} variants)
-            </label>
-            <p
+              1. Upload Image
+            </span>
+            <span
               style={{
-                ...styles.subtitle,
-                fontSize: "0.75rem",
-                marginBottom: "8px",
+                ...styles.step,
+                ...(step === 2 ? styles.stepActive : {}),
+                ...(step === 3 ? styles.stepComplete : {}),
               }}
             >
-              These alternative phrasings will also be matched against user
-              guesses.
-            </p>
-
-            {synonyms.length > 0 ? (
-              <ul style={styles.synonymList}>
-                {synonyms.map((synonym, index) => (
-                  <li key={index} style={styles.synonymItem}>
-                    <span style={styles.synonymText}>{synonym}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSynonym(index)}
-                      style={styles.buttonDanger}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p
-                style={{
-                  ...styles.subtitle,
-                  fontStyle: "italic",
-                  marginBottom: "12px",
-                }}
-              >
-                No synonyms added yet.
-              </p>
-            )}
-
-            <div style={styles.addSynonymRow}>
-              <input
-                type="text"
-                value={newSynonym}
-                onChange={(e) => setNewSynonym(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddSynonym();
-                  }
-                }}
-                style={{ ...styles.input, flex: 1 }}
-                placeholder="Add a custom synonym..."
-              />
-              <button
-                type="button"
-                onClick={handleAddSynonym}
-                disabled={!newSynonym.trim()}
-                style={{
-                  ...styles.button,
-                  ...styles.buttonSecondary,
-                  ...styles.buttonSmall,
-                  ...(!newSynonym.trim() ? styles.buttonDisabled : {}),
-                }}
-              >
-                Add
-              </button>
-            </div>
-          </div>
-
-          <form
-            onSubmit={handleCreatePuzzle}
-            style={{ ...styles.form, marginTop: "24px" }}
-          >
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                style={{ ...styles.button, ...styles.buttonSecondary }}
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={creating}
-                style={{
-                  ...styles.button,
-                  flex: 1,
-                  ...(creating ? styles.buttonDisabled : {}),
-                }}
-              >
-                {creating ? "Creating..." : "Create Puzzle"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Existing Puzzles</h2>
-
-        {/* Active puzzle status */}
-        <div style={{
-          marginBottom: "16px",
-          padding: "12px 16px",
-          backgroundColor: "var(--background)",
-          borderRadius: "8px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "8px",
-        }}>
-          <div>
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>Active Puzzle: </span>
-            <span style={{ fontWeight: 600 }}>
-              {activePuzzleId || `Today's date (${new Date().toISOString().split("T")[0]})`}
+              2. Set Answer
+            </span>
+            <span
+              style={{
+                ...styles.step,
+                ...(step === 3 ? styles.stepActive : {}),
+              }}
+            >
+              3. Configure & Create
             </span>
           </div>
-          {activePuzzleId && (
-            <button
-              onClick={() => handleSetActivePuzzle(null)}
-              disabled={settingActive === "clear"}
-              style={{
-                ...styles.button,
-                ...styles.buttonSecondary,
-                ...styles.buttonSmall,
-                ...(settingActive === "clear" ? styles.buttonDisabled : {}),
-              }}
-            >
-              {settingActive === "clear" ? "Clearing..." : "Use Date Default"}
-            </button>
-          )}
-        </div>
 
-        {puzzles.length === 0 ? (
-          <p style={styles.subtitle}>No puzzles uploaded yet</p>
-        ) : (
-          <ul style={styles.puzzleList}>
-            {puzzles.map((puzzle) => {
-              const isActive = puzzle.id === activePuzzleId;
-              return (
-                <li
-                  key={puzzle.id}
+          {message && (
+            <p style={message.type === "success" ? styles.success : styles.error}>
+              {message.text}
+            </p>
+          )}
+
+          {step === 1 && (
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>Upload Map Image</h2>
+              <div style={styles.form}>
+                <div>
+                  <label style={styles.label}>Puzzle ID (Date)</label>
+                  <input
+                    type="date"
+                    value={puzzleDate}
+                    onChange={(e) => setPuzzleDate(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Map Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    style={styles.fileInput}
+                  />
+                </div>
+                {previewUrl && (
+                  <div>
+                    <p style={styles.label}>Preview:</p>
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      style={styles.previewImage}
+                    />
+                  </div>
+                )}
+                <button
+                  onClick={handleUploadImage}
+                  disabled={!selectedFile || uploading}
                   style={{
-                    ...styles.puzzleItem,
-                    ...(isActive ? {
-                      border: "2px solid var(--primary)",
-                      backgroundColor: "var(--primary-bg, rgba(59, 130, 246, 0.1))",
-                    } : {}),
+                    ...styles.button,
+                    ...(!selectedFile || uploading ? styles.buttonDisabled : {}),
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontWeight: 500 }}>{puzzle.id}</span>
-                    {isActive && (
-                      <span style={{
-                        fontSize: "0.75rem",
-                        backgroundColor: "var(--primary)",
-                        color: "white",
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                      }}>
-                        ACTIVE
-                      </span>
+                  {uploading ? "Uploading..." : "Upload Image"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>Set Answer</h2>
+              {uploadedImageUrl && (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={styles.label}>Uploaded Image:</p>
+                  <img
+                    src={uploadedImageUrl}
+                    alt="Uploaded"
+                    style={styles.previewImage}
+                  />
+                </div>
+              )}
+              <div style={styles.form}>
+                <div>
+                  <label style={styles.label}>Answer *</label>
+                  <input
+                    type="text"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    style={styles.input}
+                    placeholder="e.g., Median household income by US county"
+                  />
+                  <p
+                    style={{
+                      ...styles.subtitle,
+                      fontSize: "0.75rem",
+                      marginTop: "4px",
+                    }}
+                  >
+                    This is what users need to guess.
+                  </p>
+                </div>
+                <div>
+                  <label style={styles.label}>Hints (comma-separated)</label>
+                  <textarea
+                    value={hints}
+                    onChange={(e) => setHints(e.target.value)}
+                    style={styles.textarea}
+                    placeholder="This map shows economic data, The data is measured in dollars"
+                  />
+                </div>
+                <div style={{ display: "flex", gap: "16px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Max Guesses</label>
+                    <input
+                      type="number"
+                      value={maxGuesses}
+                      onChange={(e) => setMaxGuesses(parseInt(e.target.value))}
+                      style={styles.input}
+                      min={1}
+                      max={20}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Similarity Threshold</label>
+                    <input
+                      type="number"
+                      value={threshold}
+                      onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                      style={styles.input}
+                      min={0.5}
+                      max={1}
+                      step={0.01}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    style={{ ...styles.button, ...styles.buttonSecondary }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateSynonyms}
+                    disabled={!answer || generatingSynonyms}
+                    style={{
+                      ...styles.button,
+                      flex: 1,
+                      ...(!answer || generatingSynonyms
+                        ? styles.buttonDisabled
+                        : {}),
+                    }}
+                  >
+                    {generatingSynonyms ? "Generating..." : "Generate Synonyms →"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>Configure & Create Puzzle</h2>
+              {uploadedImageUrl && (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={styles.label}>Image:</p>
+                  <img
+                    src={uploadedImageUrl}
+                    alt="Uploaded"
+                    style={{ ...styles.previewImage, maxHeight: "150px" }}
+                  />
+                </div>
+              )}
+              <div style={{ marginBottom: "16px" }}>
+                <p style={styles.label}>Answer:</p>
+                <p style={{ fontWeight: 500 }}>{answer}</p>
+              </div>
+
+              <div>
+                <label style={styles.label}>
+                  Synonyms ({synonyms.length} variants)
+                </label>
+                <p
+                  style={{
+                    ...styles.subtitle,
+                    fontSize: "0.75rem",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Alternative phrasings matched against user guesses.
+                </p>
+
+                {synonyms.length > 0 ? (
+                  <ul style={styles.synonymList}>
+                    {synonyms.map((synonym, index) => (
+                      <li key={index} style={styles.synonymItem}>
+                        <span style={styles.synonymText}>{synonym}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSynonym(index)}
+                          style={styles.buttonDanger}
+                        >
+                          Delete
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p
+                    style={{
+                      ...styles.subtitle,
+                      fontStyle: "italic",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    No synonyms added yet.
+                  </p>
+                )}
+
+                <div style={styles.addSynonymRow}>
+                  <input
+                    type="text"
+                    value={newSynonym}
+                    onChange={(e) => setNewSynonym(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddSynonym();
+                      }
+                    }}
+                    style={{ ...styles.input, flex: 1 }}
+                    placeholder="Add a custom synonym..."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSynonym}
+                    disabled={!newSynonym.trim()}
+                    style={{
+                      ...styles.button,
+                      ...styles.buttonSecondary,
+                      ...styles.buttonSmall,
+                      ...(!newSynonym.trim() ? styles.buttonDisabled : {}),
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode Options */}
+              <div style={styles.modeOptions}>
+                <div style={styles.modeOptionsTitle}>Game Mode Options</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <label style={styles.checkbox}>
+                    <input
+                      type="checkbox"
+                      checked={addToEndlessPool}
+                      onChange={(e) => setAddToEndlessPool(e.target.checked)}
+                      style={styles.checkboxInput}
+                    />
+                    <span>Add to Endless Mode Pool</span>
+                  </label>
+
+                  <div>
+                    <label style={styles.checkbox}>
+                      <input
+                        type="checkbox"
+                        checked={scheduleForDaily}
+                        onChange={(e) => setScheduleForDaily(e.target.checked)}
+                        style={styles.checkboxInput}
+                      />
+                      <span>Schedule for Daily Mode</span>
+                    </label>
+                    {scheduleForDaily && (
+                      <input
+                        type="date"
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        style={{ ...styles.input, marginTop: "8px", maxWidth: "200px" }}
+                      />
                     )}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-                      {new Date(puzzle.lastModified).toLocaleDateString()}
-                    </span>
-                    {!isActive && (
-                      <button
-                        onClick={() => handleSetActivePuzzle(puzzle.id)}
-                        disabled={settingActive === puzzle.id}
-                        style={{
-                          ...styles.button,
-                          ...styles.buttonSmall,
-                          ...(settingActive === puzzle.id ? styles.buttonDisabled : {}),
-                        }}
-                      >
-                        {settingActive === puzzle.id ? "Setting..." : "Set Active"}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                </div>
+              </div>
+
+              <form
+                onSubmit={handleCreatePuzzle}
+                style={{ ...styles.form, marginTop: "24px" }}
+              >
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    style={{ ...styles.button, ...styles.buttonSecondary }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    style={{
+                      ...styles.button,
+                      flex: 1,
+                      ...(creating ? styles.buttonDisabled : {}),
+                    }}
+                  >
+                    {creating ? "Creating..." : "Create Puzzle"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "endless" && <EndlessPoolView password={password} />}
+
+      {activeTab === "calendar" && <CalendarView password={password} />}
     </div>
   );
 }

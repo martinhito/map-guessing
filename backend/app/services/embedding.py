@@ -11,7 +11,7 @@ class EmbeddingService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=10.0)
 
     async def embed(self, text: str) -> List[float]:
         """Get embedding vector for text using OpenAI API."""

@@ -25,10 +25,13 @@ Generate {count} alternative ways someone might describe the same thing. Include
 - Short and detailed descriptions
 - Technical and layman's terms
 - Different word orders and sentence structures
+- Abbreviation variations (e.g., "U.S." vs "US" vs "United States", "GDP" vs "Gross Domestic Product")
+- Singular vs plural forms
+- With and without articles ("the", "a")
 
-The goal is to match how different people might describe the same map.
+The goal is to match how different people might describe the same map. Be creative with phrasing variations.
 
-Return ONLY a JSON array of strings, nothing else. Example:
+Return ONLY a JSON array of lowercase strings, nothing else. Example:
 ["phrase 1", "phrase 2", "phrase 3"]"""
 
         last_error = None
@@ -76,7 +79,7 @@ Return ONLY a JSON array of strings, nothing else. Example:
         try:
             synonyms = json.loads(content)
             if isinstance(synonyms, list):
-                return [str(s) for s in synonyms[:count]]
+                return [str(s).lower() for s in synonyms[:count]]
         except json.JSONDecodeError:
             pass
 

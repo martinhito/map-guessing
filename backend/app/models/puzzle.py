@@ -13,11 +13,32 @@ class PuzzleMetadata(BaseModel):
     id: str
     imageUrl: str
     answer: str
-    maxGuesses: int = 6
+    maxGuesses: int = 5
     similarityThreshold: float = 0.95
     answerEmbedding: List[float]  # Keep for backwards compatibility
     answerVariants: Optional[List[AnswerVariant]] = None  # New: synonyms with embeddings
     hints: Optional[List[str]] = None
+    # New fields for dual game modes
+    createdAt: Optional[str] = None  # ISO timestamp
+    inEndlessPool: bool = False  # Whether puzzle is in endless mode pool
+    scheduledDate: Optional[str] = None  # YYYY-MM-DD for daily mode
+
+
+class PuzzleIndexEntry(BaseModel):
+    """Summary info for a puzzle in the index"""
+    id: str
+    answer: str
+    imageUrl: str
+    createdAt: Optional[str] = None
+    inEndlessPool: bool = False
+    scheduledDate: Optional[str] = None
+
+
+class PuzzleIndex(BaseModel):
+    """Master index of all puzzles"""
+    puzzles: List[PuzzleIndexEntry] = []
+    dailySchedule: dict[str, str] = {}  # date -> puzzle_id
+    endlessPool: List[str] = []  # list of puzzle_ids
 
 
 class PuzzleResponse(BaseModel):

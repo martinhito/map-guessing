@@ -89,3 +89,19 @@ class AttemptService:
         game_state.hints_revealed += 1
         self.db.commit()
         return game_state.hints_revealed
+
+    def reset_game(self, user_id: str, puzzle_date: str) -> None:
+        """Reset game state and delete attempts for debugging."""
+        # Delete all attempts
+        self.db.query(UserAttempt).filter(
+            UserAttempt.user_id == user_id,
+            UserAttempt.puzzle_date == puzzle_date,
+        ).delete()
+
+        # Delete game state
+        self.db.query(DailyGameState).filter(
+            DailyGameState.user_id == user_id,
+            DailyGameState.puzzle_date == puzzle_date,
+        ).delete()
+
+        self.db.commit()

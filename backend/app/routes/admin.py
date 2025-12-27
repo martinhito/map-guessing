@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.services.embedding import get_embedding_service, EmbeddingService
 from app.services.llm import get_llm_service, LLMService
 from app.services.s3 import get_s3_service, S3PuzzleService
+from app.models.puzzle import PuzzleIndexEntry
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -27,7 +28,7 @@ class PuzzleCreateRequest(BaseModel):
     answer: str
     hints: list[str] = []
     date: Optional[str] = None  # YYYY-MM-DD format
-    maxGuesses: int = 6
+    maxGuesses: int = 5
     similarityThreshold: float = 0.95
 
 
@@ -124,8 +125,10 @@ async def create_puzzle(
     hints: str = Form(""),  # Comma-separated hints
     synonyms: str = Form(""),  # JSON array of synonym strings
     date: str = Form(None),
-    maxGuesses: int = Form(6),
+    maxGuesses: int = Form(5),
     similarityThreshold: float = Form(0.85),
+    inEndlessPool: bool = Form(False),  # Add to endless mode pool
+    scheduledDate: str = Form(None),  # Schedule for daily mode (YYYY-MM-DD)
     _: bool = Depends(verify_admin),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ):
@@ -146,9 +149,9 @@ async def create_puzzle(
         except json.JSONDecodeError:
             pass
 
-    # Build list of all texts to embed (answer + synonyms)
-    all_texts = [answer]
-    clean_synonyms = [s.strip() for s in synonyms_list if s and s.strip()]
+    # Build list of all texts to embed (answer + synonyms) - lowercase for consistency
+    all_texts = [answer.lower()]
+    clean_synonyms = [s.strip().lower() for s in synonyms_list if s and s.strip()]
     all_texts.extend(clean_synonyms)
 
     # Batch embed all texts in a single API call
@@ -158,8 +161,8 @@ async def create_puzzle(
         # First embedding is for the answer
         answer_embedding = all_embeddings[0]
 
-        # Build answer variants from results
-        answer_variants = [{"text": answer, "embedding": answer_embedding}]
+        # Build answer variants from results (store original text but use lowercased embedding)
+        answer_variants = [{"text": answer.lower(), "embedding": answer_embedding}]
         for i, synonym in enumerate(clean_synonyms):
             answer_variants.append({
                 "text": synonym,
@@ -169,10 +172,14 @@ async def create_puzzle(
         # If batch fails, try just the answer
         print(f"Batch embedding failed: {e}, trying answer only")
         try:
-            answer_embedding = await embedding_service.embed(answer)
-            answer_variants = [{"text": answer, "embedding": answer_embedding}]
+            answer_embedding = await embedding_service.embed(answer.lower())
+            answer_variants = [{"text": answer.lower(), "embedding": answer_embedding}]
         except Exception as e2:
             raise HTTPException(status_code=500, detail=f"Failed to embed answer: {e2}")
+
+    # Parse mode options
+    scheduled = scheduledDate if scheduledDate and scheduledDate.strip() else None
+    created_at = datetime.now(timezone.utc).isoformat()
 
     # Create puzzle metadata
     puzzle_data = {
@@ -184,6 +191,10 @@ async def create_puzzle(
         "answerEmbedding": answer_embedding,  # Keep for backwards compatibility
         "answerVariants": answer_variants,  # New: all variants with embeddings
         "hints": hints_list if hints_list else None,
+        # New mode fields
+        "createdAt": created_at,
+        "inEndlessPool": inEndlessPool,
+        "scheduledDate": scheduled,
     }
 
     # Upload to S3
@@ -204,6 +215,12 @@ async def create_puzzle(
         Body=json_content.encode("utf-8"),
         ContentType="application/json",
     )
+
+    # Add puzzle to the index
+    from app.models.puzzle import PuzzleMetadata
+    puzzle = PuzzleMetadata(**puzzle_data)
+    s3_service = get_s3_service()
+    s3_service.add_puzzle_to_index(puzzle)
 
     return PuzzleCreateResponse(
         success=True,
@@ -292,4 +309,107 @@ async def set_active_puzzle(
         "activePuzzleId": puzzle_id,
         "effectivePuzzleId": puzzle_id or today_id,
         "message": f"Active puzzle set to {puzzle_id}" if puzzle_id else "Active puzzle cleared (using date-based default)",
+    }
+
+
+# --- Dual Game Mode Endpoints ---
+
+
+@router.get("/puzzles/all")
+async def list_all_puzzles(
+    _: bool = Depends(verify_admin),
+):
+    """Get all puzzles with their mode information."""
+    s3_service = get_s3_service()
+    puzzles = s3_service.get_all_puzzles()
+
+    return {
+        "puzzles": [p.model_dump() for p in puzzles],
+    }
+
+
+@router.get("/puzzles/endless-pool")
+async def get_endless_pool(
+    _: bool = Depends(verify_admin),
+):
+    """Get all puzzles in the endless pool."""
+    s3_service = get_s3_service()
+    puzzles = s3_service.get_endless_pool_puzzles()
+
+    return {
+        "puzzles": [p.model_dump() for p in puzzles],
+        "count": len(puzzles),
+    }
+
+
+@router.post("/puzzles/{puzzle_id}/endless-pool")
+async def toggle_endless_pool(
+    puzzle_id: str,
+    inPool: bool = Form(...),
+    _: bool = Depends(verify_admin),
+):
+    """Add or remove a puzzle from the endless pool."""
+    s3_service = get_s3_service()
+
+    try:
+        puzzle = s3_service.toggle_endless_pool(puzzle_id, inPool)
+        return {
+            "success": True,
+            "puzzleId": puzzle_id,
+            "inEndlessPool": puzzle.inEndlessPool,
+            "message": f"Puzzle {'added to' if inPool else 'removed from'} endless pool",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/puzzles/{puzzle_id}/schedule")
+async def schedule_puzzle(
+    puzzle_id: str,
+    date: Optional[str] = Form(None),
+    _: bool = Depends(verify_admin),
+):
+    """Schedule a puzzle for a specific date, or unschedule if date is empty."""
+    s3_service = get_s3_service()
+
+    # Empty string or None means unschedule
+    schedule_date = date if date and date.strip() else None
+
+    try:
+        puzzle = s3_service.schedule_puzzle(puzzle_id, schedule_date)
+        return {
+            "success": True,
+            "puzzleId": puzzle_id,
+            "scheduledDate": puzzle.scheduledDate,
+            "message": f"Puzzle scheduled for {schedule_date}" if schedule_date else "Puzzle unscheduled",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/calendar/{year}/{month}")
+async def get_calendar(
+    year: int,
+    month: int,
+    _: bool = Depends(verify_admin),
+):
+    """Get scheduled puzzles for a specific month."""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Invalid month")
+
+    s3_service = get_s3_service()
+    schedule = s3_service.get_puzzles_for_month(year, month)
+    index = s3_service.get_puzzle_index()
+
+    # Build detailed info for each scheduled puzzle
+    scheduled_puzzles = {}
+    for date, puzzle_id in schedule.items():
+        puzzle_info = next((p for p in index.puzzles if p.id == puzzle_id), None)
+        if puzzle_info:
+            scheduled_puzzles[date] = puzzle_info.model_dump()
+
+    return {
+        "year": year,
+        "month": month,
+        "schedule": scheduled_puzzles,
     }

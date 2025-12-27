@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Map Guessing - Daily Map Puzzle",
-  description: "Guess what the map represents in this daily puzzle game",
+  title: "Can You Guess the Map?",
+  description: "A daily map guessing game - can you figure out what the map represents?",
 };
 
 export default function RootLayout({

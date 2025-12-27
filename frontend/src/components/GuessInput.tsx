@@ -7,6 +7,7 @@ interface Props {
   onChange: (value: string) => void;
   onSubmit: () => void;
   disabled: boolean;
+  loading?: boolean;
   placeholder?: string;
 }
 
@@ -15,6 +16,7 @@ export default function GuessInput({
   onChange,
   onSubmit,
   disabled,
+  loading = false,
   placeholder = "Enter your guess...",
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,16 +53,20 @@ export default function GuessInput({
       />
       <button
         onClick={onSubmit}
-        disabled={disabled || !value.trim()}
+        disabled={disabled || loading || !value.trim()}
         style={{
           ...styles.button,
-          ...(disabled || !value.trim() ? styles.buttonDisabled : {}),
+          ...(disabled || loading || !value.trim() ? styles.buttonDisabled : {}),
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <line x1="5" y1="12" x2="19" y2="12" />
-          <polyline points="12 5 19 12 12 19" />
-        </svg>
+        {loading ? (
+          <div style={styles.spinner} />
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        )}
       </button>
     </div>
   );
@@ -103,5 +109,13 @@ const styles: Record<string, CSSProperties> = {
   buttonDisabled: {
     backgroundColor: "var(--muted)",
     cursor: "not-allowed",
+  },
+  spinner: {
+    width: "20px",
+    height: "20px",
+    border: "2px solid rgba(255,255,255,0.3)",
+    borderTopColor: "white",
+    borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
   },
 };
