@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional, Dict
 import time
 
@@ -70,8 +71,8 @@ class S3PuzzleService:
         return self.get_today_puzzle_id()
 
     def get_today_puzzle_id(self) -> str:
-        """Get today's puzzle ID based on UTC date."""
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        """Get today's puzzle ID based on EST (New York) date."""
+        return datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
 
     def get_active_puzzle_id(self) -> Optional[str]:
         """Get the currently active puzzle ID from S3."""

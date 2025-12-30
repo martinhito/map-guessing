@@ -19,15 +19,20 @@ interface CachedData {
   timestamp: number;
 }
 
+function getTodayEST(): string {
+  // Get today's date in EST (America/New_York)
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
 function getCachedPuzzle(): PuzzleResponse | null {
   if (typeof window === "undefined") return null;
   try {
     const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
     const data: CachedData = JSON.parse(cached);
-    // Check if cache is still valid and same day
+    // Check if cache is still valid and same day (EST)
     const now = Date.now();
-    const today = new Date().toISOString().split("T")[0];
+    const today = getTodayEST();
     if (now - data.timestamp < CACHE_TTL && data.puzzle.id === today) {
       return data.puzzle;
     }
