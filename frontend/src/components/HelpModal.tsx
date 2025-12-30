@@ -96,7 +96,10 @@ export default function HelpModal({ onClose }: Props) {
 
         <div style={styles.section}>
           <p style={styles.textSmall}>
-            New puzzle every day. Stuck? Use a hint!
+            New puzzle every day at midnight EST.
+          </p>
+          <p style={styles.textSmall}>
+            Some puzzles include hints or a data source to help you out — look for them below the map!
           </p>
         </div>
       </div>
@@ -167,7 +170,7 @@ const styles: Record<string, CSSProperties> = {
   textSmall: {
     fontSize: "0.8125rem",
     lineHeight: 1.5,
-    margin: 0,
+    margin: "0 0 8px 0",
     color: "var(--muted)",
     textAlign: "center",
   },
