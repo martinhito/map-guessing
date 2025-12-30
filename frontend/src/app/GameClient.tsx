@@ -29,6 +29,7 @@ export default function GameClient() {
   const [showResult, setShowResult] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [shakeInput, setShakeInput] = useState(false);
+  const [sourceRevealed, setSourceRevealed] = useState(false);
 
   const handleSubmit = async () => {
     if (!inputValue.trim() || gameOver) return;
@@ -116,12 +117,23 @@ export default function GameClient() {
         {/* Map */}
         <MapDisplay imageUrl={puzzle.imageUrl} puzzleId={puzzle.id} />
 
-        {/* Source attribution */}
+        {/* Source attribution - revealable */}
         {puzzle.sourceText && (
           <div style={styles.sourceAttribution}>
-            Source: {puzzle.sourceText}
-            {gameOver && sourceUrl && (
-              <> — <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={styles.sourceLink}>View data</a></>
+            {sourceRevealed ? (
+              <>
+                Source: {puzzle.sourceText}
+                {gameOver && sourceUrl && (
+                  <> — <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={styles.sourceLink}>View data</a></>
+                )}
+              </>
+            ) : (
+              <button
+                onClick={() => setSourceRevealed(true)}
+                style={styles.sourceRevealBtn}
+              >
+                Tap to reveal source
+              </button>
             )}
           </div>
         )}
@@ -376,5 +388,15 @@ const styles: Record<string, React.CSSProperties> = {
   sourceLink: {
     color: "var(--primary)",
     textDecoration: "none",
+  },
+  sourceRevealBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--muted)",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    transition: "background-color 0.2s",
   },
 };
