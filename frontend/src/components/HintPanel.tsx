@@ -74,9 +74,9 @@ const styles: Record<string, CSSProperties> = {
   container: {
     width: "100%",
     padding: "16px",
-    backgroundColor: "var(--card-bg)",
+    backgroundColor: "rgba(99, 102, 241, 0.05)",
     borderRadius: "12px",
-    border: "2px solid var(--border)",
+    border: "2px dashed rgba(99, 102, 241, 0.3)",
   },
   header: {
     display: "flex",
@@ -88,7 +88,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    color: "var(--muted)",
+    color: "#6366f1",
   },
   title: {
     fontSize: "0.8125rem",
@@ -99,8 +99,9 @@ const styles: Record<string, CSSProperties> = {
   count: {
     fontSize: "0.75rem",
     padding: "2px 6px",
-    backgroundColor: "var(--border)",
+    backgroundColor: "rgba(99, 102, 241, 0.15)",
     borderRadius: "4px",
+    color: "#6366f1",
   },
   button: {
     display: "flex",
@@ -109,7 +110,7 @@ const styles: Record<string, CSSProperties> = {
     padding: "8px 14px",
     fontSize: "0.8125rem",
     fontWeight: 600,
-    backgroundColor: "var(--close)",
+    backgroundColor: "#6366f1",
     color: "white",
     border: "none",
     borderRadius: "6px",
@@ -129,8 +130,9 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-start",
     gap: "10px",
     padding: "10px 12px",
-    backgroundColor: "var(--background)",
+    backgroundColor: "rgba(99, 102, 241, 0.08)",
     borderRadius: "8px",
+    borderLeft: "3px solid #6366f1",
   },
   hintNumber: {
     display: "flex",
@@ -140,7 +142,7 @@ const styles: Record<string, CSSProperties> = {
     height: "20px",
     fontSize: "0.6875rem",
     fontWeight: 700,
-    backgroundColor: "var(--close)",
+    backgroundColor: "#6366f1",
     color: "white",
     borderRadius: "50%",
     flexShrink: 0,
@@ -150,10 +152,11 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.4,
   },
   noHints: {
-    color: "var(--muted)",
+    color: "#6366f1",
     fontSize: "0.875rem",
     textAlign: "center",
     padding: "8px 0",
     margin: 0,
+    fontStyle: "italic",
   },
 };

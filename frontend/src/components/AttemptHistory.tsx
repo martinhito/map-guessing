@@ -90,15 +90,15 @@ function getTemperatureStyle(ratio: number): {
       label: "CORRECT!",
     };
   }
-  if (ratio >= 0.8) {
+  if (ratio >= 0.65) {
     return {
       bg: "var(--close-bg)",
       border: "var(--close)",
       color: "var(--close)",
-      label: "Hot",
+      label: "Close",
     };
   }
-  if (ratio >= 0.5) {
+  if (ratio >= 0.35) {
     return {
       bg: "var(--warm-bg)",
       border: "var(--warm)",
@@ -108,8 +108,8 @@ function getTemperatureStyle(ratio: number): {
   }
   return {
     bg: "var(--cold-bg)",
-    border: "var(--border)",
-    color: "var(--muted)",
+    border: "var(--cold)",
+    color: "var(--cold)",
     label: "Cold",
   };
 }

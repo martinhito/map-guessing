@@ -9,15 +9,15 @@
   --border-dark: #878a8c;
   --muted: #787c7e;
 
-  /* Game colors - temperature based */
-  --correct: #6aaa64;
+  /* Game colors - temperature based (4 tiers) */
+  --correct: #6aaa64;      /* Green - correct */
   --correct-bg: rgba(106, 170, 100, 0.15);
-  --close: #e07c3e;
-  --close-bg: rgba(224, 124, 62, 0.15);
-  --warm: #c9b458;
-  --warm-bg: rgba(201, 180, 88, 0.15);
-  --cold: #787c7e;
-  --cold-bg: rgba(120, 124, 126, 0.15);
+  --close: #c9b458;        /* Yellow - close */
+  --close-bg: rgba(201, 180, 88, 0.15);
+  --warm: #e07c3e;         /* Orange - pretty wrong */
+  --warm-bg: rgba(224, 124, 62, 0.15);
+  --cold: #dc3545;         /* Red - very wrong */
+  --cold-bg: rgba(220, 53, 69, 0.15);
 
   /* Legacy aliases */
   --primary: #6aaa64;
@@ -40,15 +40,15 @@
     --border-dark: #565758;
     --muted: #818384;
 
-    /* Game colors stay vibrant in dark mode */
-    --correct: #538d4e;
+    /* Game colors stay vibrant in dark mode (4 tiers) */
+    --correct: #538d4e;      /* Green - correct */
     --correct-bg: rgba(83, 141, 78, 0.2);
-    --close: #c76a2f;
-    --close-bg: rgba(199, 106, 47, 0.2);
-    --warm: #b59f3b;
-    --warm-bg: rgba(181, 159, 59, 0.2);
-    --cold: #3a3a3c;
-    --cold-bg: rgba(58, 58, 60, 0.5);
+    --close: #b59f3b;        /* Yellow - close */
+    --close-bg: rgba(181, 159, 59, 0.2);
+    --warm: #c76a2f;         /* Orange - pretty wrong */
+    --warm-bg: rgba(199, 106, 47, 0.2);
+    --cold: #c53030;         /* Red - very wrong */
+    --cold-bg: rgba(197, 48, 48, 0.2);
 
     --header-bg: #121213;
     --header-border: #3a3a3c;

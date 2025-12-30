@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { useGame } from "@/hooks/useGame";
 import MapDisplay from "@/components/MapDisplay";
 import GuessInput from "@/components/GuessInput";
-import AttemptHistory from "@/components/AttemptHistory";
 import HintPanel from "@/components/HintPanel";
 import ResultModal from "@/components/ResultModal";
 
@@ -127,45 +126,55 @@ export default function TestPuzzlePage() {
           </div>
         )}
 
-        <div style={styles.guessSlots}>
+        {/* Wordle-style guess board */}
+        <div style={styles.guessBoard}>
           {Array.from({ length: maxGuesses }).map((_, i) => {
             const attemptIndex = attempts.length - 1 - i;
             const attempt = attemptIndex >= 0 ? attempts[attemptIndex] : null;
+            const isCurrentRow = i === attempts.length && !gameOver;
+
+            if (attempt) {
+              const ratio = attempt.similarity / puzzle.similarityThreshold;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    ...styles.guessRow,
+                    ...styles.guessRowFilled,
+                    backgroundColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold),
+                    borderColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold),
+                  }}
+                >
+                  <span style={styles.guessRowText}>{attempt.guess}</span>
+                  <span style={styles.guessRowPercent}>
+                    {Math.min(Math.round(ratio * 100), 100)}%
+                  </span>
+                </div>
+              );
+            }
+
+            if (isCurrentRow) {
+              return (
+                <div key={i} style={{ width: "100%" }}>
+                  <GuessInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    onSubmit={handleSubmit}
+                    disabled={gameOver}
+                    loading={loading}
+                    placeholder="What does this map show?"
+                  />
+                </div>
+              );
+            }
 
             return (
-              <div
-                key={i}
-                style={{
-                  ...styles.guessSlot,
-                  ...(attempt
-                    ? { backgroundColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold) }
-                    : i === attempts.length && !gameOver
-                    ? styles.guessSlotCurrent
-                    : {}),
-                }}
-              />
+              <div key={i} style={styles.guessRow}>
+                <span style={styles.guessRowEmpty}>&nbsp;</span>
+              </div>
             );
           })}
         </div>
-
-        <div style={{ width: "100%" }}>
-          <GuessInput
-            value={inputValue}
-            onChange={setInputValue}
-            onSubmit={handleSubmit}
-            disabled={gameOver}
-            loading={loading}
-            placeholder="What does this map show?"
-            remainingGuesses={remainingGuesses}
-            maxGuesses={maxGuesses}
-          />
-        </div>
-
-        <AttemptHistory
-          attempts={attempts}
-          threshold={puzzle.similarityThreshold}
-          maxGuesses={maxGuesses}
-        />
 
         {puzzle.hintsAvailable > 0 && (
           <HintPanel
@@ -206,10 +215,10 @@ export default function TestPuzzlePage() {
 
 function getSlotColor(similarity: number, threshold: number): string {
   const ratio = similarity / threshold;
-  if (ratio >= 1) return "var(--correct)";
-  if (ratio >= 0.8) return "var(--close)";
-  if (ratio >= 0.5) return "var(--warm)";
-  return "var(--cold)";
+  if (ratio >= 1) return "var(--correct)";   // Green - correct
+  if (ratio >= 0.65) return "var(--close)";  // Yellow - close
+  if (ratio >= 0.35) return "var(--warm)";   // Orange - pretty wrong
+  return "var(--cold)";                       // Red - very wrong
 }
 
 const styles: Record<string, React.CSSProperties> = {

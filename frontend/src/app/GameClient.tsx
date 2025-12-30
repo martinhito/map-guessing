@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useGame } from "@/hooks/useGame";
 import MapDisplay from "@/components/MapDisplay";
 import GuessInput from "@/components/GuessInput";
-import AttemptHistory from "@/components/AttemptHistory";
 import HintPanel from "@/components/HintPanel";
 import ResultModal from "@/components/ResultModal";
 import HelpModal from "@/components/HelpModal";
@@ -138,49 +137,59 @@ export default function GameClient() {
           </div>
         )}
 
-        {/* Guess slots indicator */}
-        <div style={styles.guessSlots}>
+        {/* Wordle-style guess board */}
+        <div style={styles.guessBoard}>
           {Array.from({ length: maxGuesses }).map((_, i) => {
-            // Attempts are stored newest-first, but we want to display oldest-first (left to right)
+            // Attempts are stored newest-first, we display oldest-first (top to bottom)
             const attemptIndex = attempts.length - 1 - i;
             const attempt = attemptIndex >= 0 ? attempts[attemptIndex] : null;
+            const isCurrentRow = i === attempts.length && !gameOver;
 
+            if (attempt) {
+              // Filled row - show the guess with color
+              const ratio = attempt.similarity / puzzle.similarityThreshold;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    ...styles.guessRow,
+                    ...styles.guessRowFilled,
+                    backgroundColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold),
+                    borderColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold),
+                  }}
+                >
+                  <span style={styles.guessRowText}>{attempt.guess}</span>
+                  <span style={styles.guessRowPercent}>
+                    {Math.min(Math.round(ratio * 100), 100)}%
+                  </span>
+                </div>
+              );
+            }
+
+            if (isCurrentRow) {
+              // Current input row
+              return (
+                <div key={i} style={{ width: "100%" }} className={shakeInput ? "animate-shake" : ""}>
+                  <GuessInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    onSubmit={handleSubmit}
+                    disabled={gameOver}
+                    loading={loading}
+                    placeholder="What does this map show?"
+                  />
+                </div>
+              );
+            }
+
+            // Empty row
             return (
-              <div
-                key={i}
-                style={{
-                  ...styles.guessSlot,
-                  ...(attempt
-                    ? { backgroundColor: getSlotColor(attempt.similarity, puzzle.similarityThreshold) }
-                    : i === attempts.length && !gameOver
-                    ? styles.guessSlotCurrent
-                    : {}),
-                }}
-              />
+              <div key={i} style={styles.guessRow}>
+                <span style={styles.guessRowEmpty}>&nbsp;</span>
+              </div>
             );
           })}
         </div>
-
-        {/* Input area */}
-        <div style={{ width: "100%" }} className={shakeInput ? "animate-shake" : ""}>
-          <GuessInput
-            value={inputValue}
-            onChange={setInputValue}
-            onSubmit={handleSubmit}
-            disabled={gameOver}
-            loading={loading}
-            placeholder="What does this map show?"
-            remainingGuesses={remainingGuesses}
-            maxGuesses={maxGuesses}
-          />
-        </div>
-
-        {/* Previous guesses */}
-        <AttemptHistory
-          attempts={attempts}
-          threshold={puzzle.similarityThreshold}
-          maxGuesses={maxGuesses}
-        />
 
         {/* Hints */}
         {puzzle.hintsAvailable > 0 && (
@@ -245,10 +254,10 @@ export default function GameClient() {
 
 function getSlotColor(similarity: number, threshold: number): string {
   const ratio = similarity / threshold;
-  if (ratio >= 1) return "var(--correct)";
-  if (ratio >= 0.8) return "var(--close)";
-  if (ratio >= 0.5) return "var(--warm)";
-  return "var(--cold)";
+  if (ratio >= 1) return "var(--correct)";   // Green - correct
+  if (ratio >= 0.65) return "var(--close)";  // Yellow - close
+  if (ratio >= 0.35) return "var(--warm)";   // Orange - pretty wrong
+  return "var(--cold)";                       // Red - very wrong
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -337,20 +346,41 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--error)",
     textAlign: "center",
   },
-  guessSlots: {
+  guessBoard: {
     display: "flex",
-    gap: "6px",
-    justifyContent: "center",
+    flexDirection: "column",
+    gap: "8px",
+    width: "100%",
   },
-  guessSlot: {
-    width: "32px",
-    height: "8px",
-    borderRadius: "4px",
-    backgroundColor: "var(--border)",
-    transition: "background-color 0.3s ease",
+  guessRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    border: "2px solid var(--border)",
+    backgroundColor: "var(--card-bg)",
+    minHeight: "52px",
   },
-  guessSlotCurrent: {
-    backgroundColor: "var(--border-dark)",
+  guessRowFilled: {
+    color: "white",
+  },
+  guessRowText: {
+    fontSize: "0.9375rem",
+    fontWeight: 500,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    flex: 1,
+  },
+  guessRowPercent: {
+    fontSize: "0.8125rem",
+    fontWeight: 700,
+    marginLeft: "12px",
+    flexShrink: 0,
+  },
+  guessRowEmpty: {
+    color: "transparent",
   },
   showResultBtn: {
     position: "fixed",
