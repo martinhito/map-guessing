@@ -48,13 +48,16 @@ export default function HelpModal({ onClose }: Props) {
             />
           </div>
           <div style={styles.exampleAnswer}>
-            <span style={styles.exampleLabel}>Answer:</span> % of Forest Coverage
+            <span style={styles.exampleLabel}>Answer:</span> Percent of Land Covered by Forest
           </div>
         </div>
 
         <div style={styles.section}>
           <p style={styles.text}>
             Type what you think the map represents and hit enter. The color shows how close your guess was to the answer.
+          </p>
+          <p style={styles.textNote}>
+            Your answer doesn't need to match exactly — close-enough answers will be accepted!
           </p>
         </div>
 
@@ -209,12 +212,20 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "center",
     fontSize: "0.875rem",
     padding: "8px 12px",
-    backgroundColor: "var(--correct-bg)",
-    border: "1px solid var(--correct)",
+    backgroundColor: "var(--background)",
+    border: "1px solid var(--border)",
     borderRadius: "6px",
-    color: "var(--correct)",
+    color: "var(--foreground)",
   },
   exampleLabel: {
     fontWeight: 600,
+    color: "var(--muted)",
+  },
+  textNote: {
+    fontSize: "0.8125rem",
+    lineHeight: 1.5,
+    margin: "8px 0 0 0",
+    color: "var(--muted)",
+    fontStyle: "italic",
   },
 };
