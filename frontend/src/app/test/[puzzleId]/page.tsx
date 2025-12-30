@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useParams } from "next/navigation";
 import { useGame } from "@/hooks/useGame";
 import MapDisplay from "@/components/MapDisplay";
 import GuessInput from "@/components/GuessInput";
 import AttemptHistory from "@/components/AttemptHistory";
 import HintPanel from "@/components/HintPanel";
 import ResultModal from "@/components/ResultModal";
-import HelpModal from "@/components/HelpModal";
 
-export default function GameClient() {
+export default function TestPuzzlePage() {
+  const params = useParams();
+  const puzzleId = params.puzzleId as string;
+
   const {
     puzzle,
     attempts,
@@ -23,12 +26,11 @@ export default function GameClient() {
     remainingGuesses,
     makeGuess,
     revealHint,
-  } = useGame();
+    loadPuzzle,
+  } = useGame(puzzleId);
 
   const [inputValue, setInputValue] = useState("");
   const [showResult, setShowResult] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [shakeInput, setShakeInput] = useState(false);
 
   const handleSubmit = async () => {
     if (!inputValue.trim() || gameOver) return;
@@ -42,41 +44,28 @@ export default function GameClient() {
     }
   };
 
-  const headerContent = (
-    <header style={styles.header}>
-      <div style={styles.headerContent}>
-        <div style={styles.headerSpacer} />
-        <div style={styles.headerCenter}>
-          <h1 style={styles.title}>Can You Guess the Map?</h1>
-          <p style={styles.tagline}>A daily map guessing game</p>
-        </div>
-        <div style={styles.headerRight}>
-          <button
-            style={styles.helpBtn}
-            onClick={() => setShowHelp(true)}
-            aria-label="How to play"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <circle cx="12" cy="17" r="0.5" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
-  );
+  const handleReset = async () => {
+    if (!puzzle) return;
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    await fetch(`${API_BASE}/api/puzzle/${puzzle.id}/reset`, {
+      method: "POST",
+      credentials: "include",
+    });
+    window.location.reload();
+  };
 
   if (loading && !puzzle) {
     return (
       <div style={styles.page}>
-        {headerContent}
+        <div style={styles.header}>
+          <a href="/admin" style={styles.backLink}>← Back to Admin</a>
+          <h1 style={styles.title}>Testing: {puzzleId}</h1>
+        </div>
         <main style={styles.main}>
           <div style={styles.loading}>
             <div style={styles.spinner} />
           </div>
         </main>
-        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       </div>
     );
   }
@@ -84,11 +73,13 @@ export default function GameClient() {
   if (error && !puzzle) {
     return (
       <div style={styles.page}>
-        {headerContent}
+        <div style={styles.header}>
+          <a href="/admin" style={styles.backLink}>← Back to Admin</a>
+          <h1 style={styles.title}>Testing: {puzzleId}</h1>
+        </div>
         <main style={styles.main}>
           <div style={styles.errorBox}>{error}</div>
         </main>
-        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       </div>
     );
   }
@@ -96,11 +87,13 @@ export default function GameClient() {
   if (!puzzle) {
     return (
       <div style={styles.page}>
-        {headerContent}
+        <div style={styles.header}>
+          <a href="/admin" style={styles.backLink}>← Back to Admin</a>
+          <h1 style={styles.title}>Testing: {puzzleId}</h1>
+        </div>
         <main style={styles.main}>
-          <div style={styles.errorBox}>No puzzle available today</div>
+          <div style={styles.errorBox}>Puzzle not found</div>
         </main>
-        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       </div>
     );
   }
@@ -109,14 +102,22 @@ export default function GameClient() {
 
   return (
     <div style={styles.page}>
-      {headerContent}
+      <div style={styles.header}>
+        <a href="/admin" style={styles.backLink}>← Back to Admin</a>
+        <h1 style={styles.title}>Testing: {puzzleId}</h1>
+        <button onClick={handleReset} style={styles.resetBtn}>
+          Reset
+        </button>
+      </div>
 
-      {/* Main game area */}
+      {/* Test info banner */}
+      <div style={styles.testBanner}>
+        <strong>Test Mode</strong> — Answer: {puzzle.sourceText ? `"${puzzle.sourceText}"` : "Not set"}
+      </div>
+
       <main style={styles.main}>
-        {/* Map */}
         <MapDisplay imageUrl={puzzle.imageUrl} puzzleId={puzzle.id} />
 
-        {/* Source attribution */}
         {puzzle.sourceText && (
           <div style={styles.sourceAttribution}>
             Source: {puzzle.sourceText}
@@ -126,10 +127,8 @@ export default function GameClient() {
           </div>
         )}
 
-        {/* Guess slots indicator */}
         <div style={styles.guessSlots}>
           {Array.from({ length: maxGuesses }).map((_, i) => {
-            // Attempts are stored newest-first, but we want to display oldest-first (left to right)
             const attemptIndex = attempts.length - 1 - i;
             const attempt = attemptIndex >= 0 ? attempts[attemptIndex] : null;
 
@@ -149,8 +148,7 @@ export default function GameClient() {
           })}
         </div>
 
-        {/* Input area */}
-        <div style={{ width: "100%" }} className={shakeInput ? "animate-shake" : ""}>
+        <div style={{ width: "100%" }}>
           <GuessInput
             value={inputValue}
             onChange={setInputValue}
@@ -161,14 +159,12 @@ export default function GameClient() {
           />
         </div>
 
-        {/* Previous guesses */}
         <AttemptHistory
           attempts={attempts}
           threshold={puzzle.similarityThreshold}
           maxGuesses={maxGuesses}
         />
 
-        {/* Hints */}
         {puzzle.hintsAvailable > 0 && (
           <HintPanel
             hints={hints}
@@ -179,7 +175,6 @@ export default function GameClient() {
         )}
       </main>
 
-      {/* Result modal */}
       {showResult && (
         <ResultModal
           solved={solved}
@@ -195,34 +190,12 @@ export default function GameClient() {
         />
       )}
 
-      {/* Show result button if game is over but modal was closed */}
       {gameOver && !showResult && (
         <button
           onClick={() => setShowResult(true)}
           style={styles.showResultBtn}
         >
-          Share Results
-        </button>
-      )}
-
-      {/* Help modal */}
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-
-      {/* Debug button - only on localhost */}
-      {typeof window !== "undefined" && window.location.hostname === "localhost" && (
-        <button
-          onClick={async () => {
-            if (puzzle) {
-              await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/puzzle/${puzzle.id}/reset`, {
-                method: "POST",
-                credentials: "include",
-              });
-              window.location.reload();
-            }
-          }}
-          style={styles.debugBtn}
-        >
-          Reset Game (Debug)
+          View Results
         </button>
       )}
     </div>
@@ -245,50 +218,40 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     padding: "12px 16px",
-    borderBottom: "1px solid var(--header-border)",
+    borderBottom: "1px solid var(--border)",
     backgroundColor: "var(--header-bg)",
-  },
-  headerContent: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    maxWidth: "600px",
-    margin: "0 auto",
+    gap: "16px",
   },
-  headerSpacer: {
-    width: "40px",
-  },
-  headerCenter: {
-    textAlign: "center",
-    flex: 1,
-  },
-  headerRight: {
-    width: "40px",
-    display: "flex",
-    justifyContent: "flex-end",
-  },
-  helpBtn: {
-    background: "none",
-    border: "none",
-    color: "var(--muted)",
-    padding: "4px",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  backLink: {
+    color: "var(--primary)",
+    textDecoration: "none",
+    fontSize: "0.875rem",
   },
   title: {
-    fontSize: "1.5rem",
-    fontWeight: 700,
-    letterSpacing: "0.02em",
+    fontSize: "1rem",
+    fontWeight: 600,
+    flex: 1,
     margin: 0,
   },
-  tagline: {
+  resetBtn: {
+    padding: "6px 12px",
+    backgroundColor: "var(--error)",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
     fontSize: "0.75rem",
-    color: "var(--muted)",
-    textTransform: "uppercase",
-    letterSpacing: "0.15em",
-    marginTop: "2px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  testBanner: {
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    borderBottom: "1px solid var(--primary)",
+    padding: "8px 16px",
+    fontSize: "0.8125rem",
+    textAlign: "center",
+    color: "var(--primary)",
   },
   main: {
     flex: 1,
@@ -323,6 +286,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--error)",
     textAlign: "center",
   },
+  sourceAttribution: {
+    fontSize: "0.75rem",
+    color: "var(--muted)",
+    textAlign: "center",
+    marginTop: "-8px",
+  },
+  sourceLink: {
+    color: "var(--primary)",
+    textDecoration: "none",
+  },
   guessSlots: {
     display: "flex",
     gap: "6px",
@@ -353,28 +326,6 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-  },
-  debugBtn: {
-    position: "fixed",
-    bottom: "20px",
-    right: "20px",
-    padding: "8px 12px",
-    backgroundColor: "#ef4444",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    opacity: 0.8,
-  },
-  sourceAttribution: {
-    fontSize: "0.75rem",
-    color: "var(--muted)",
-    textAlign: "center",
-    marginTop: "-8px",
-  },
-  sourceLink: {
-    color: "var(--primary)",
-    textDecoration: "none",
+    cursor: "pointer",
   },
 };

@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.models.puzzle import GuessRequest, GuessResponse
 from app.services.s3 import get_s3_service, S3PuzzleService
 from app.services.embedding import get_embedding_service, EmbeddingService
+from app.services.llm import get_llm_service, LLMService
 from app.services.similarity import cosine_similarity
 from app.services.attempts import AttemptService
 
@@ -22,6 +23,7 @@ async def submit_guess(
     x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
+    llm_service: LLMService = Depends(get_llm_service),
     db: Session = Depends(get_db),
 ):
     """Submit a guess and get similarity score."""
@@ -54,6 +56,7 @@ async def submit_guess(
             message="Already solved!",
             answer=puzzle.answer,
             attemptsUsed=game_state.total_guesses,
+            sourceUrl=puzzle.sourceUrl,
         )
 
     # Out of guesses
@@ -66,6 +69,7 @@ async def submit_guess(
             message="No guesses remaining",
             answer=puzzle.answer,
             attemptsUsed=game_state.total_guesses,
+            sourceUrl=puzzle.sourceUrl,
         )
 
     # Calculate similarity against all answer variants
@@ -74,8 +78,10 @@ async def submit_guess(
     # First, check fuzzy string match (catches typos like "untied states" -> "united states")
     best_fuzzy = 0.0
     answer_texts = [puzzle.answer.lower()]
+    variant_texts = []
     if puzzle.answerVariants:
-        answer_texts.extend([v.text.lower() for v in puzzle.answerVariants if v.text])
+        variant_texts = [v.text.lower() for v in puzzle.answerVariants if v.text]
+        answer_texts.extend(variant_texts)
 
     for answer_text in answer_texts:
         # Use token_sort_ratio to handle word order differences too
@@ -83,27 +89,39 @@ async def submit_guess(
         if fuzzy_score > best_fuzzy:
             best_fuzzy = fuzzy_score
 
-    # If fuzzy match is very high (>90%), treat as correct regardless of embedding
-    if best_fuzzy >= 0.90:
-        similarity = max(best_fuzzy, puzzle.similarityThreshold)
+    # Always calculate embedding similarity for UI display
+    guess_embedding = await embedding_service.embed(guess_text)
+    best_similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
+
+    if puzzle.answerVariants:
+        for variant in puzzle.answerVariants:
+            variant_similarity = cosine_similarity(variant.embedding, guess_embedding)
+            if variant_similarity > best_similarity:
+                best_similarity = variant_similarity
+
+    # Take the best of fuzzy and embedding similarity for display
+    similarity = max(best_similarity, best_fuzzy * 0.9)
+
+    # Determine correctness - greedy approach:
+    # 1. If fuzzy or embedding is good enough, count as correct immediately
+    # 2. Only fall back to LLM if in LLM mode and neither was good enough
+    if best_fuzzy >= 0.90 or similarity >= puzzle.similarityThreshold:
+        # Fast path: embedding or fuzzy match is good enough
         is_correct = True
+        similarity = max(similarity, puzzle.similarityThreshold)
+    elif puzzle.similarityMode == "llm":
+        # Slow path: call LLM only if embedding wasn't good enough
+        is_correct, llm_confidence = await llm_service.check_guess_match(
+            answer=puzzle.answer,
+            guess=guess_text,
+            variants=variant_texts if variant_texts else None,
+        )
+        # If LLM says correct, ensure similarity shows as high
+        if is_correct:
+            similarity = max(similarity, puzzle.similarityThreshold)
     else:
-        # Fall back to embedding similarity
-        guess_embedding = await embedding_service.embed(guess_text)
-
-        # Check against all variants and take the best match
-        best_similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
-
-        if puzzle.answerVariants:
-            for variant in puzzle.answerVariants:
-                variant_similarity = cosine_similarity(variant.embedding, guess_embedding)
-                if variant_similarity > best_similarity:
-                    best_similarity = variant_similarity
-
-        # Take the best of fuzzy and embedding similarity
-        # Scale fuzzy to be comparable (fuzzy 80% = pretty close)
-        similarity = max(best_similarity, best_fuzzy * 0.9)
-        is_correct = similarity >= puzzle.similarityThreshold
+        # Embedding mode but didn't meet threshold
+        is_correct = False
 
     # Record attempt
     updated_state = attempt_service.record_attempt(
@@ -132,6 +150,7 @@ async def submit_guess(
         message=message,
         answer=puzzle.answer if game_over else None,
         attemptsUsed=updated_state.total_guesses,
+        sourceUrl=puzzle.sourceUrl if game_over else None,
     )
 
 

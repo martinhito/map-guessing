@@ -11,6 +11,8 @@ interface Props {
   threshold: number;
   puzzleId: string;
   imageUrl: string;
+  sourceText?: string | null;
+  sourceUrl?: string | null;
   onClose: () => void;
 }
 
@@ -22,6 +24,8 @@ export default function ResultModal({
   threshold,
   puzzleId,
   imageUrl,
+  sourceText,
+  sourceUrl,
   onClose,
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -383,6 +387,20 @@ https://canyouguessthemap.com` : base;
             </>
           )}
         </button>
+
+        {/* Source link */}
+        {sourceUrl && (
+          <div style={styles.sourceSection}>
+            <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={styles.sourceLink}>
+              {sourceText ? `View source: ${sourceText}` : "View data source"}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -528,5 +546,17 @@ const styles: Record<string, CSSProperties> = {
     borderTopColor: "white",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
+  },
+  sourceSection: {
+    marginTop: "16px",
+    textAlign: "center",
+  },
+  sourceLink: {
+    color: "var(--muted)",
+    fontSize: "0.8125rem",
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
   },
 };

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { GameState, Attempt, GuessResponse, HintResponse, PuzzleResponse } from "@/lib/types";
 import {
   fetchPuzzle,
+  fetchPuzzleById,
   submitGuess,
   fetchHint,
   fetchAttempts,
@@ -55,14 +56,15 @@ const initialState: GameState = {
   loading: true,
   error: null,
   answer: null,
+  sourceUrl: null,
 };
 
-export function useGame() {
+export function useGame(puzzleId?: string) {
   const [state, setState] = useState<GameState>(initialState);
 
   const loadPuzzle = useCallback(async () => {
-    // Try to show cached puzzle immediately
-    const cached = getCachedPuzzle();
+    // Try to show cached puzzle immediately (only for daily puzzle)
+    const cached = !puzzleId ? getCachedPuzzle() : null;
     if (cached) {
       setState((prev) => ({ ...prev, puzzle: cached, loading: true }));
     } else {
@@ -70,9 +72,9 @@ export function useGame() {
     }
 
     try {
-      // Fetch puzzle (or use cached if valid)
-      const puzzle = cached || await fetchPuzzle();
-      if (!cached) {
+      // Fetch puzzle by ID or get today's puzzle
+      const puzzle = cached || (puzzleId ? await fetchPuzzleById(puzzleId) : await fetchPuzzle());
+      if (!cached && !puzzleId) {
         setCachedPuzzle(puzzle);
       }
 
@@ -103,7 +105,7 @@ export function useGame() {
         error: error instanceof Error ? error.message : "Failed to load puzzle",
       }));
     }
-  }, []);
+  }, [puzzleId]);
 
   // Load puzzle on mount
   useEffect(() => {
@@ -131,6 +133,7 @@ export function useGame() {
           solved: result.correct,
           gameOver: result.gameOver,
           answer: result.answer,
+          sourceUrl: result.sourceUrl,
           loading: false,
         }));
 

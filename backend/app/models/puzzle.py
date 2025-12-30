@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 
 class AnswerVariant(BaseModel):
@@ -18,6 +18,11 @@ class PuzzleMetadata(BaseModel):
     answerEmbedding: List[float]  # Keep for backwards compatibility
     answerVariants: Optional[List[AnswerVariant]] = None  # New: synonyms with embeddings
     hints: Optional[List[str]] = None
+    # Similarity checking mode: "embedding" uses vector similarity, "llm" uses GPT-4o-mini
+    similarityMode: Literal["embedding", "llm"] = "embedding"
+    # Source attribution
+    sourceText: Optional[str] = None  # e.g. "US Census Bureau"
+    sourceUrl: Optional[str] = None  # Link to original data (shown after game ends)
     # New fields for dual game modes
     createdAt: Optional[str] = None  # ISO timestamp
     inEndlessPool: bool = False  # Whether puzzle is in endless mode pool
@@ -49,6 +54,7 @@ class PuzzleResponse(BaseModel):
     similarityThreshold: float
     prompt: str = "Guess what this map represents"
     hintsAvailable: int = 0
+    sourceText: Optional[str] = None  # Always visible
 
 
 class GuessRequest(BaseModel):
@@ -63,6 +69,7 @@ class GuessResponse(BaseModel):
     message: str
     answer: Optional[str] = None
     attemptsUsed: int
+    sourceUrl: Optional[str] = None  # Only shown when game is over
 
 
 class HintResponse(BaseModel):

@@ -85,6 +85,97 @@ Return ONLY a JSON array of lowercase strings, nothing else. Example:
 
         return []
 
+    async def check_guess_match(self, answer: str, guess: str, variants: list[str] | None = None) -> tuple[bool, float]:
+        """
+        Check if a guess matches the answer using GPT-4o-mini.
+        Returns (is_correct, confidence) where confidence is 0.0-1.0.
+        """
+        variants_text = ""
+        if variants:
+            variants_text = f"\nAcceptable alternative phrasings: {', '.join(variants)}"
+
+        prompt = f"""You are evaluating whether a user's guess correctly identifies what a map is showing.
+
+The correct answer is: "{answer}"{variants_text}
+
+The user guessed: "{guess}"
+
+Determine if the guess is essentially correct - it should capture the same core concept/data being shown on the map, even if worded differently.
+
+Be lenient with:
+- Different word orders
+- Singular vs plural
+- Minor spelling errors
+- Abbreviations vs full words
+- Articles (the, a, an)
+- Synonymous terms
+
+Be strict about:
+- The actual subject matter (e.g., "income" vs "population" are different)
+- Geographic scope if specified (e.g., "US" vs "world" are different)
+- The type of data (e.g., "median" vs "average" vs "total" matter)
+
+Respond with JSON only."""
+
+        try:
+            response = await self.client.post(
+                self.CHAT_URL,
+                headers={
+                    "Authorization": f"Bearer {self.settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0,
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "guess_evaluation",
+                            "strict": True,
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "is_correct": {
+                                        "type": "boolean",
+                                        "description": "Whether the guess correctly identifies what the map shows"
+                                    },
+                                    "confidence": {
+                                        "type": "number",
+                                        "description": "Confidence score from 0.0 to 1.0 indicating how close the guess is"
+                                    },
+                                    "reasoning": {
+                                        "type": "string",
+                                        "description": "Brief explanation of the evaluation"
+                                    }
+                                },
+                                "required": ["is_correct", "confidence", "reasoning"],
+                                "additionalProperties": False
+                            }
+                        }
+                    },
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            result = json.loads(content)
+
+            is_correct = result.get("is_correct", False)
+            confidence = float(result.get("confidence", 0.0))
+
+            # Clamp confidence to 0-1 range
+            confidence = max(0.0, min(1.0, confidence))
+
+            return (is_correct, confidence)
+
+        except Exception as e:
+            print(f"LLM guess check error: {e}")
+            # On error, return not correct with 0 confidence
+            return (False, 0.0)
+
     async def close(self):
         await self.client.aclose()
 

@@ -67,6 +67,7 @@ async def get_daily_puzzle(
         similarityThreshold=puzzle.similarityThreshold,
         prompt="Guess what this map represents",
         hintsAvailable=hints_count,
+        sourceText=puzzle.sourceText,
     )
 
 
@@ -95,6 +96,7 @@ async def get_puzzle_by_id(
         similarityThreshold=puzzle.similarityThreshold,
         prompt="Guess what this map represents",
         hintsAvailable=hints_count,
+        sourceText=puzzle.sourceText,
     )
 
 

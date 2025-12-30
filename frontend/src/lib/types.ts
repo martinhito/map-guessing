@@ -5,6 +5,7 @@ export interface PuzzleResponse {
   similarityThreshold: number;
   prompt: string;
   hintsAvailable: number;
+  sourceText: string | null;
 }
 
 export interface GuessResponse {
@@ -15,6 +16,7 @@ export interface GuessResponse {
   message: string;
   answer: string | null;
   attemptsUsed: number;
+  sourceUrl: string | null;
 }
 
 export interface HintResponse {
@@ -50,4 +52,5 @@ export interface GameState {
   loading: boolean;
   error: string | null;
   answer: string | null;
+  sourceUrl: string | null;
 }

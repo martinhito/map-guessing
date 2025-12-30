@@ -269,6 +269,28 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "0.75rem",
     color: "var(--muted)",
   },
+  modeToggle: {
+    display: "flex",
+    gap: "0",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "2px solid var(--border)",
+  },
+  modeToggleBtn: {
+    flex: 1,
+    padding: "10px 16px",
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    border: "none",
+    backgroundColor: "var(--background)",
+    color: "var(--foreground)",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  modeToggleBtnActive: {
+    backgroundColor: "var(--primary)",
+    color: "white",
+  },
 };
 
 export default function AdminPage() {
@@ -289,6 +311,7 @@ export default function AdminPage() {
   const [hints, setHints] = useState("");
   const [maxGuesses, setMaxGuesses] = useState(5);
   const [threshold, setThreshold] = useState(0.85);
+  const [similarityMode, setSimilarityMode] = useState<"embedding" | "llm">("embedding");
 
   // Mode options
   const [addToEndlessPool, setAddToEndlessPool] = useState(false);
@@ -299,6 +322,10 @@ export default function AdminPage() {
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [newSynonym, setNewSynonym] = useState("");
   const [generatingSynonyms, setGeneratingSynonyms] = useState(false);
+
+  // Source attribution
+  const [sourceText, setSourceText] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
 
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -456,9 +483,16 @@ export default function AdminPage() {
     formData.append("date", puzzleDate);
     formData.append("maxGuesses", maxGuesses.toString());
     formData.append("similarityThreshold", threshold.toString());
+    formData.append("similarityMode", similarityMode);
     formData.append("inEndlessPool", addToEndlessPool.toString());
     if (scheduleForDaily && scheduledDate) {
       formData.append("scheduledDate", scheduledDate);
+    }
+    if (sourceText.trim()) {
+      formData.append("sourceText", sourceText.trim());
+    }
+    if (sourceUrl.trim()) {
+      formData.append("sourceUrl", sourceUrl.trim());
     }
 
     try {
@@ -489,6 +523,9 @@ export default function AdminPage() {
       setAnswer("");
       setHints("");
       setSynonyms([]);
+      setSourceText("");
+      setSourceUrl("");
+      setSimilarityMode("embedding");
       setAddToEndlessPool(false);
       setScheduleForDaily(false);
       setScheduledDate("");
@@ -686,7 +723,8 @@ export default function AdminPage() {
                         setScheduledDate(e.target.value);
                         setPuzzleDate(e.target.value);
                       }}
-                      style={styles.input}
+                      onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+                      style={{ ...styles.input, cursor: "pointer" }}
                     />
                     <p style={{ ...styles.subtitle, fontSize: "0.75rem", marginTop: "4px" }}>
                       This puzzle will appear on this date
@@ -776,6 +814,46 @@ export default function AdminPage() {
                 </div>
                 <div style={{ display: "flex", gap: "16px" }}>
                   <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Source</label>
+                    <input
+                      type="text"
+                      value={sourceText}
+                      onChange={(e) => setSourceText(e.target.value)}
+                      style={styles.input}
+                      placeholder="e.g., US Census Bureau"
+                    />
+                    <p
+                      style={{
+                        ...styles.subtitle,
+                        fontSize: "0.75rem",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Always visible below the map
+                    </p>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Source URL (optional)</label>
+                    <input
+                      type="url"
+                      value={sourceUrl}
+                      onChange={(e) => setSourceUrl(e.target.value)}
+                      style={styles.input}
+                      placeholder="https://..."
+                    />
+                    <p
+                      style={{
+                        ...styles.subtitle,
+                        fontSize: "0.75rem",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Shown after game ends
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "16px" }}>
+                  <div style={{ flex: 1 }}>
                     <label style={styles.label}>Max Guesses</label>
                     <input
                       type="number"
@@ -798,6 +876,36 @@ export default function AdminPage() {
                       step={0.01}
                     />
                   </div>
+                </div>
+                <div>
+                  <label style={styles.label}>Answer Checking Mode</label>
+                  <div style={styles.modeToggle}>
+                    <button
+                      type="button"
+                      onClick={() => setSimilarityMode("embedding")}
+                      style={{
+                        ...styles.modeToggleBtn,
+                        ...(similarityMode === "embedding" ? styles.modeToggleBtnActive : {}),
+                      }}
+                    >
+                      Embedding
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSimilarityMode("llm")}
+                      style={{
+                        ...styles.modeToggleBtn,
+                        ...(similarityMode === "llm" ? styles.modeToggleBtnActive : {}),
+                      }}
+                    >
+                      LLM (GPT-4o-mini)
+                    </button>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "4px" }}>
+                    {similarityMode === "embedding"
+                      ? "Uses vector similarity to compare guesses (faster, cheaper)"
+                      : "Uses GPT-4o-mini to judge if guess is correct (smarter, costs ~$0.001/guess)"}
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: "12px" }}>
                   <button

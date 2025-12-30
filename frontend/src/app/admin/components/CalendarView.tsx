@@ -18,6 +18,21 @@ interface Puzzle {
   scheduledDate?: string;
 }
 
+interface PuzzleDetails {
+  id: string;
+  imageUrl: string;
+  answer: string;
+  maxGuesses: number;
+  similarityThreshold: number;
+  similarityMode: "embedding" | "llm";
+  hints: string[];
+  sourceText: string | null;
+  sourceUrl: string | null;
+  inEndlessPool: boolean;
+  scheduledDate: string | null;
+  answerVariants: string[];
+}
+
 interface Props {
   password: string;
 }
@@ -202,6 +217,92 @@ const styles: Record<string, CSSProperties> = {
     padding: "24px",
     color: "var(--muted)",
   },
+  label: {
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    marginBottom: "4px",
+    display: "block",
+  },
+  input: {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: "0.9375rem",
+    border: "2px solid var(--border)",
+    borderRadius: "6px",
+    backgroundColor: "var(--background)",
+    color: "var(--foreground)",
+    outline: "none",
+  },
+  textarea: {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: "0.9375rem",
+    border: "2px solid var(--border)",
+    borderRadius: "6px",
+    backgroundColor: "var(--background)",
+    color: "var(--foreground)",
+    outline: "none",
+    resize: "vertical" as const,
+    fontFamily: "inherit",
+  },
+  synonymList: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "8px",
+    marginTop: "8px",
+    maxHeight: "150px",
+    overflowY: "auto" as const,
+  },
+  synonymItem: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+  addSynonymRow: {
+    display: "flex",
+    gap: "8px",
+    marginTop: "8px",
+  },
+  buttonDangerSmall: {
+    backgroundColor: "var(--error)",
+    color: "white",
+    border: "none",
+    width: "28px",
+    height: "28px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "1.25rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  modeToggle: {
+    display: "flex",
+    gap: "0",
+    borderRadius: "6px",
+    overflow: "hidden",
+    border: "2px solid var(--border)",
+  },
+  modeToggleBtn: {
+    flex: 1,
+    padding: "8px 12px",
+    fontSize: "0.8125rem",
+    fontWeight: 500,
+    border: "none",
+    backgroundColor: "var(--background)",
+    color: "var(--foreground)",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  modeToggleBtnActive: {
+    backgroundColor: "var(--primary)",
+    color: "white",
+  },
+  buttonTest: {
+    backgroundColor: "#8b5cf6",
+    color: "white",
+  },
 };
 
 export default function CalendarView({ password }: Props) {
@@ -211,11 +312,28 @@ export default function CalendarView({ password }: Props) {
   const [schedule, setSchedule] = useState<Record<string, ScheduledPuzzle>>({});
   const [loading, setLoading] = useState(true);
 
-  // Modal state
+  // Assignment modal state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [allPuzzles, setAllPuzzles] = useState<Puzzle[]>([]);
   const [selectedPuzzleId, setSelectedPuzzleId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Edit modal state
+  const [editingPuzzle, setEditingPuzzle] = useState<PuzzleDetails | null>(null);
+  const [editForm, setEditForm] = useState({
+    answer: "",
+    hints: "",
+    synonyms: "",
+    maxGuesses: 5,
+    similarityThreshold: 0.85,
+    similarityMode: "embedding" as "embedding" | "llm",
+    sourceText: "",
+    sourceUrl: "",
+    inEndlessPool: false,
+  });
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editMessage, setEditMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     loadCalendar();
@@ -250,9 +368,83 @@ export default function CalendarView({ password }: Props) {
   };
 
   const handleDayClick = async (date: string) => {
-    setSelectedDate(date);
-    setSelectedPuzzleId(schedule[date]?.id || null);
-    await loadAllPuzzles();
+    const puzzle = schedule[date];
+    if (puzzle) {
+      // If there's a puzzle, open edit modal
+      await loadPuzzleDetails(puzzle.id);
+    } else {
+      // If no puzzle, open assignment modal
+      setSelectedDate(date);
+      setSelectedPuzzleId(null);
+      await loadAllPuzzles();
+    }
+  };
+
+  const loadPuzzleDetails = async (puzzleId: string) => {
+    setLoadingEdit(true);
+    setEditMessage(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/puzzles/${puzzleId}/details`, {
+        headers: { "X-Admin-Password": password },
+      });
+      if (!response.ok) throw new Error("Failed to load puzzle");
+      const data: PuzzleDetails = await response.json();
+      setEditingPuzzle(data);
+      setEditForm({
+        answer: data.answer,
+        hints: data.hints.join(", "),
+        synonyms: JSON.stringify(data.answerVariants.filter(v => v.toLowerCase() !== data.answer.toLowerCase())),
+        maxGuesses: data.maxGuesses,
+        similarityThreshold: data.similarityThreshold,
+        similarityMode: data.similarityMode || "embedding",
+        sourceText: data.sourceText || "",
+        sourceUrl: data.sourceUrl || "",
+        inEndlessPool: data.inEndlessPool,
+      });
+    } catch (e) {
+      console.error("Failed to load puzzle details", e);
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPuzzle) return;
+    setSavingEdit(true);
+    setEditMessage(null);
+
+    const formData = new FormData();
+    formData.append("answer", editForm.answer);
+    formData.append("hints", editForm.hints);
+    formData.append("synonyms", editForm.synonyms || "[]");
+    formData.append("maxGuesses", editForm.maxGuesses.toString());
+    formData.append("similarityThreshold", editForm.similarityThreshold.toString());
+    formData.append("similarityMode", editForm.similarityMode);
+    formData.append("sourceText", editForm.sourceText);
+    formData.append("sourceUrl", editForm.sourceUrl);
+    formData.append("inEndlessPool", editForm.inEndlessPool.toString());
+    formData.append("scheduledDate", editingPuzzle.scheduledDate || "");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/puzzles/${editingPuzzle.id}`, {
+        method: "PUT",
+        headers: { "X-Admin-Password": password },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to save");
+      }
+
+      setEditMessage({ type: "success", text: "Puzzle updated!" });
+      await loadCalendar();
+      setTimeout(() => setEditingPuzzle(null), 1000);
+    } catch (e) {
+      setEditMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to save" });
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleAssign = async () => {
@@ -466,6 +658,283 @@ export default function CalendarView({ password }: Props) {
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingPuzzle && (
+        <div style={styles.modal} onClick={() => setEditingPuzzle(null)}>
+          <div style={{ ...styles.modalContent, maxWidth: "600px" }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>
+              Edit Puzzle: {editingPuzzle.id}
+            </h3>
+
+            {loadingEdit ? (
+              <div style={styles.loading}>Loading...</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* Image preview */}
+                <div style={{ textAlign: "center" }}>
+                  <img
+                    src={editingPuzzle.imageUrl}
+                    alt={editingPuzzle.answer}
+                    style={{ maxWidth: "100%", maxHeight: "150px", borderRadius: "8px" }}
+                  />
+                </div>
+
+                {/* Answer */}
+                <div>
+                  <label style={styles.label}>Answer</label>
+                  <input
+                    type="text"
+                    value={editForm.answer}
+                    onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
+
+                {/* Hints */}
+                <div>
+                  <label style={styles.label}>Hints (comma-separated)</label>
+                  <textarea
+                    value={editForm.hints}
+                    onChange={(e) => setEditForm({ ...editForm, hints: e.target.value })}
+                    style={styles.textarea}
+                    rows={2}
+                  />
+                </div>
+
+                {/* Synonyms */}
+                <div>
+                  <label style={styles.label}>Synonyms (alternative answers)</label>
+                  <div style={styles.synonymList}>
+                    {(() => {
+                      try {
+                        const arr = JSON.parse(editForm.synonyms);
+                        return Array.isArray(arr) ? arr : [];
+                      } catch {
+                        return [];
+                      }
+                    })().map((synonym: string, index: number) => (
+                      <div key={index} style={styles.synonymItem}>
+                        <input
+                          type="text"
+                          value={synonym}
+                          onChange={(e) => {
+                            const arr = JSON.parse(editForm.synonyms);
+                            arr[index] = e.target.value;
+                            setEditForm({ ...editForm, synonyms: JSON.stringify(arr) });
+                          }}
+                          style={{ ...styles.input, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = JSON.parse(editForm.synonyms);
+                            arr.splice(index, 1);
+                            setEditForm({ ...editForm, synonyms: JSON.stringify(arr) });
+                          }}
+                          style={styles.buttonDangerSmall}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={styles.addSynonymRow}>
+                    <input
+                      type="text"
+                      placeholder="Add a synonym..."
+                      style={{ ...styles.input, flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            try {
+                              const arr = JSON.parse(editForm.synonyms || "[]");
+                              arr.push(input.value.trim());
+                              setEditForm({ ...editForm, synonyms: JSON.stringify(arr) });
+                              input.value = "";
+                            } catch {
+                              setEditForm({ ...editForm, synonyms: JSON.stringify([input.value.trim()]) });
+                              input.value = "";
+                            }
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
+                        if (input.value.trim()) {
+                          try {
+                            const arr = JSON.parse(editForm.synonyms || "[]");
+                            arr.push(input.value.trim());
+                            setEditForm({ ...editForm, synonyms: JSON.stringify(arr) });
+                            input.value = "";
+                          } catch {
+                            setEditForm({ ...editForm, synonyms: JSON.stringify([input.value.trim()]) });
+                            input.value = "";
+                          }
+                        }
+                      }}
+                      style={{ ...styles.button, ...styles.buttonSecondary, padding: "8px 16px" }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Source */}
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Source</label>
+                    <input
+                      type="text"
+                      value={editForm.sourceText}
+                      onChange={(e) => setEditForm({ ...editForm, sourceText: e.target.value })}
+                      style={styles.input}
+                      placeholder="e.g., US Census Bureau"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Source URL</label>
+                    <input
+                      type="url"
+                      value={editForm.sourceUrl}
+                      onChange={(e) => setEditForm({ ...editForm, sourceUrl: e.target.value })}
+                      style={styles.input}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                {/* Max guesses & threshold */}
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Max Guesses</label>
+                    <input
+                      type="number"
+                      value={editForm.maxGuesses}
+                      onChange={(e) => setEditForm({ ...editForm, maxGuesses: parseInt(e.target.value) })}
+                      style={styles.input}
+                      min={1}
+                      max={20}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={styles.label}>Similarity Threshold</label>
+                    <input
+                      type="number"
+                      value={editForm.similarityThreshold}
+                      onChange={(e) => setEditForm({ ...editForm, similarityThreshold: parseFloat(e.target.value) })}
+                      style={styles.input}
+                      min={0.5}
+                      max={1}
+                      step={0.01}
+                    />
+                  </div>
+                </div>
+
+                {/* Answer checking mode */}
+                <div>
+                  <label style={styles.label}>Answer Checking Mode</label>
+                  <div style={styles.modeToggle}>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, similarityMode: "embedding" })}
+                      style={{
+                        ...styles.modeToggleBtn,
+                        ...(editForm.similarityMode === "embedding" ? styles.modeToggleBtnActive : {}),
+                      }}
+                    >
+                      Embedding
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, similarityMode: "llm" })}
+                      style={{
+                        ...styles.modeToggleBtn,
+                        ...(editForm.similarityMode === "llm" ? styles.modeToggleBtnActive : {}),
+                      }}
+                    >
+                      LLM
+                    </button>
+                  </div>
+                </div>
+
+                {/* Endless pool toggle */}
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={editForm.inEndlessPool}
+                      onChange={(e) => setEditForm({ ...editForm, inEndlessPool: e.target.checked })}
+                      style={{ width: "18px", height: "18px" }}
+                    />
+                    <span>Include in Endless Pool</span>
+                  </label>
+                </div>
+
+                {/* Message */}
+                {editMessage && (
+                  <div style={{
+                    color: editMessage.type === "success" ? "var(--success)" : "var(--error)",
+                    fontSize: "0.875rem"
+                  }}>
+                    {editMessage.text}
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div style={styles.buttonRow}>
+                  <button
+                    onClick={() => setEditingPuzzle(null)}
+                    style={{ ...styles.button, ...styles.buttonSecondary }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => window.open(`/test/${editingPuzzle.id}`, "_blank")}
+                    style={{ ...styles.button, ...styles.buttonTest }}
+                  >
+                    Test
+                  </button>
+                  {editingPuzzle.scheduledDate && (
+                    <button
+                      onClick={async () => {
+                        const formData = new FormData();
+                        formData.append("date", "");
+                        await fetch(`${API_BASE}/api/admin/puzzles/${editingPuzzle.id}/schedule`, {
+                          method: "POST",
+                          headers: { "X-Admin-Password": password },
+                          body: formData,
+                        });
+                        await loadCalendar();
+                        setEditingPuzzle(null);
+                      }}
+                      style={{ ...styles.button, ...styles.buttonDanger }}
+                    >
+                      Unschedule
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={savingEdit}
+                    style={{
+                      ...styles.button,
+                      ...styles.buttonPrimary,
+                      opacity: savingEdit ? 0.5 : 1,
+                    }}
+                  >
+                    {savingEdit ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

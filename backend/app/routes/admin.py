@@ -127,8 +127,11 @@ async def create_puzzle(
     date: str = Form(None),
     maxGuesses: int = Form(5),
     similarityThreshold: float = Form(0.85),
+    similarityMode: str = Form("embedding"),  # "embedding" or "llm"
     inEndlessPool: bool = Form(False),  # Add to endless mode pool
     scheduledDate: str = Form(None),  # Schedule for daily mode (YYYY-MM-DD)
+    sourceText: str = Form(None),  # Source attribution text
+    sourceUrl: str = Form(None),  # Source link (shown after game ends)
     _: bool = Depends(verify_admin),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
 ):
@@ -181,6 +184,13 @@ async def create_puzzle(
     scheduled = scheduledDate if scheduledDate and scheduledDate.strip() else None
     created_at = datetime.now(timezone.utc).isoformat()
 
+    # Parse source fields
+    source_text = sourceText.strip() if sourceText and sourceText.strip() else None
+    source_url = sourceUrl.strip() if sourceUrl and sourceUrl.strip() else None
+
+    # Validate similarity mode
+    sim_mode = similarityMode if similarityMode in ("embedding", "llm") else "embedding"
+
     # Create puzzle metadata
     puzzle_data = {
         "id": puzzle_date,
@@ -188,9 +198,13 @@ async def create_puzzle(
         "answer": answer,
         "maxGuesses": maxGuesses,
         "similarityThreshold": similarityThreshold,
+        "similarityMode": sim_mode,
         "answerEmbedding": answer_embedding,  # Keep for backwards compatibility
         "answerVariants": answer_variants,  # New: all variants with embeddings
         "hints": hints_list if hints_list else None,
+        # Source attribution
+        "sourceText": source_text,
+        "sourceUrl": source_url,
         # New mode fields
         "createdAt": created_at,
         "inEndlessPool": inEndlessPool,
@@ -385,6 +399,154 @@ async def schedule_puzzle(
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/puzzles/{puzzle_id}/details")
+async def get_puzzle_details(
+    puzzle_id: str,
+    _: bool = Depends(verify_admin),
+):
+    """Get full puzzle details for editing."""
+    s3_service = get_s3_service()
+
+    try:
+        puzzle = s3_service.get_puzzle(puzzle_id)
+        return {
+            "id": puzzle.id,
+            "imageUrl": puzzle.imageUrl,
+            "answer": puzzle.answer,
+            "maxGuesses": puzzle.maxGuesses,
+            "similarityThreshold": puzzle.similarityThreshold,
+            "similarityMode": puzzle.similarityMode,
+            "hints": puzzle.hints or [],
+            "sourceText": puzzle.sourceText,
+            "sourceUrl": puzzle.sourceUrl,
+            "inEndlessPool": puzzle.inEndlessPool,
+            "scheduledDate": puzzle.scheduledDate,
+            "answerVariants": [v.text for v in puzzle.answerVariants] if puzzle.answerVariants else [],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/puzzles/{puzzle_id}")
+async def update_puzzle(
+    puzzle_id: str,
+    answer: str = Form(...),
+    hints: str = Form(""),
+    synonyms: str = Form(""),
+    maxGuesses: int = Form(5),
+    similarityThreshold: float = Form(0.85),
+    similarityMode: str = Form("embedding"),
+    sourceText: str = Form(None),
+    sourceUrl: str = Form(None),
+    inEndlessPool: bool = Form(False),
+    scheduledDate: str = Form(None),
+    _: bool = Depends(verify_admin),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+):
+    """Update an existing puzzle's metadata."""
+    settings = get_settings()
+    s3_service = get_s3_service()
+
+    # Get existing puzzle
+    try:
+        existing = s3_service.get_puzzle(puzzle_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Parse hints
+    hints_list = [h.strip() for h in hints.split(",") if h.strip()] if hints else []
+
+    # Parse synonyms
+    synonyms_list = []
+    if synonyms:
+        try:
+            synonyms_list = json.loads(synonyms)
+        except json.JSONDecodeError:
+            pass
+
+    # Check if answer changed - need to re-embed
+    answer_changed = answer.lower() != existing.answer.lower()
+    synonyms_changed = set([s.strip().lower() for s in synonyms_list]) != set(
+        [v.text.lower() for v in existing.answerVariants] if existing.answerVariants else []
+    )
+
+    if answer_changed or synonyms_changed:
+        # Re-embed answer and synonyms
+        all_texts = [answer.lower()]
+        clean_synonyms = [s.strip().lower() for s in synonyms_list if s and s.strip()]
+        all_texts.extend(clean_synonyms)
+
+        try:
+            all_embeddings = await embedding_service.embed_batch(all_texts)
+            answer_embedding = all_embeddings[0]
+            answer_variants = [{"text": answer.lower(), "embedding": answer_embedding}]
+            for i, synonym in enumerate(clean_synonyms):
+                answer_variants.append({
+                    "text": synonym,
+                    "embedding": all_embeddings[i + 1]
+                })
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to embed: {e}")
+    else:
+        # Keep existing embeddings
+        answer_embedding = existing.answerEmbedding
+        answer_variants = [v.model_dump() for v in existing.answerVariants] if existing.answerVariants else []
+
+    # Parse optional fields
+    source_text = sourceText.strip() if sourceText and sourceText.strip() else None
+    source_url = sourceUrl.strip() if sourceUrl and sourceUrl.strip() else None
+    scheduled = scheduledDate if scheduledDate and scheduledDate.strip() else None
+    sim_mode = similarityMode if similarityMode in ("embedding", "llm") else "embedding"
+
+    # Build updated puzzle data
+    puzzle_data = {
+        "id": puzzle_id,
+        "imageUrl": existing.imageUrl,
+        "answer": answer,
+        "maxGuesses": maxGuesses,
+        "similarityThreshold": similarityThreshold,
+        "similarityMode": sim_mode,
+        "answerEmbedding": answer_embedding,
+        "answerVariants": answer_variants,
+        "hints": hints_list if hints_list else None,
+        "sourceText": source_text,
+        "sourceUrl": source_url,
+        "createdAt": existing.createdAt,
+        "inEndlessPool": inEndlessPool,
+        "scheduledDate": scheduled,
+    }
+
+    # Upload to S3
+    import boto3
+    s3_client = boto3.client(
+        "s3",
+        region_name=settings.aws_region,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+    )
+
+    json_key = f"{settings.s3_puzzle_prefix}{puzzle_id}.json"
+    json_content = json.dumps(puzzle_data, indent=2)
+
+    s3_client.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=json_key,
+        Body=json_content.encode("utf-8"),
+        ContentType="application/json",
+    )
+
+    # Update index
+    from app.models.puzzle import PuzzleMetadata
+    puzzle = PuzzleMetadata(**puzzle_data)
+    s3_service.update_puzzle_in_index(puzzle)
+
+    return {
+        "success": True,
+        "puzzleId": puzzle_id,
+        "message": "Puzzle updated successfully",
+    }
 
 
 @router.get("/calendar/{year}/{month}")

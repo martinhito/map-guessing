@@ -174,6 +174,13 @@ class S3PuzzleService:
 
         self.save_puzzle_index(index)
 
+    def update_puzzle_in_index(self, puzzle: PuzzleMetadata) -> None:
+        """Update a puzzle in the index (alias for add_puzzle_to_index)."""
+        # Invalidate cache first
+        if puzzle.id in self._puzzle_cache:
+            del self._puzzle_cache[puzzle.id]
+        self.add_puzzle_to_index(puzzle)
+
     def toggle_endless_pool(self, puzzle_id: str, in_pool: bool) -> PuzzleMetadata:
         """Toggle a puzzle's endless pool membership."""
         puzzle = self.get_puzzle(puzzle_id)
