@@ -21,19 +21,7 @@ export default function AttemptHistory({ attempts, threshold, maxGuesses }: Prop
   }, [attempts.length]);
 
   if (attempts.length === 0) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.emptyState}>
-          <p style={styles.emptyText}>Your guesses will appear here</p>
-          <div style={styles.emptyHint}>
-            <span style={{ ...styles.colorDot, backgroundColor: "var(--correct)" }} /> Correct
-            <span style={{ ...styles.colorDot, backgroundColor: "var(--close)", marginLeft: "12px" }} /> Hot
-            <span style={{ ...styles.colorDot, backgroundColor: "var(--warm)", marginLeft: "12px" }} /> Warm
-            <span style={{ ...styles.colorDot, backgroundColor: "var(--cold)", marginLeft: "12px" }} /> Cold
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -184,30 +172,5 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: "4px",
     minWidth: "52px",
     textAlign: "center",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "24px 16px",
-  },
-  emptyText: {
-    color: "var(--muted)",
-    fontSize: "0.9375rem",
-    marginBottom: "12px",
-  },
-  emptyHint: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "0.75rem",
-    color: "var(--muted)",
-    flexWrap: "wrap",
-    gap: "4px",
-  },
-  colorDot: {
-    display: "inline-block",
-    width: "12px",
-    height: "12px",
-    borderRadius: "2px",
-    marginRight: "4px",
   },
 };
