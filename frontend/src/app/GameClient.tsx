@@ -170,6 +170,8 @@ export default function GameClient() {
             disabled={gameOver}
             loading={loading}
             placeholder="What does this map show?"
+            remainingGuesses={remainingGuesses}
+            maxGuesses={maxGuesses}
           />
         </div>
 

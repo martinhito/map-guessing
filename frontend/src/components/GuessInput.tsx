@@ -9,6 +9,8 @@ interface Props {
   disabled: boolean;
   loading?: boolean;
   placeholder?: string;
+  remainingGuesses?: number;
+  maxGuesses?: number;
 }
 
 export default function GuessInput({
@@ -18,6 +20,8 @@ export default function GuessInput({
   disabled,
   loading = false,
   placeholder = "Enter your guess...",
+  remainingGuesses,
+  maxGuesses,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -33,54 +37,73 @@ export default function GuessInput({
     }
   };
 
+  const showCounter = remainingGuesses !== undefined && maxGuesses !== undefined;
+
   return (
-    <div style={styles.container}>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete="off"
-        autoCapitalize="off"
-        spellCheck={false}
-        style={{
-          ...styles.input,
-          ...(disabled ? styles.inputDisabled : {}),
-        }}
-      />
-      <button
-        onClick={onSubmit}
-        disabled={disabled || loading || !value.trim()}
-        style={{
-          ...styles.button,
-          ...(disabled || loading || !value.trim() ? styles.buttonDisabled : {}),
-        }}
-      >
-        {loading ? (
-          <div style={styles.spinner} />
-        ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        )}
-      </button>
+    <div style={styles.wrapper}>
+      <div style={styles.container}>
+        <div style={styles.inputWrapper}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            style={{
+              ...styles.input,
+              ...(disabled ? styles.inputDisabled : {}),
+            }}
+          />
+          {showCounter && !disabled && (
+            <div style={styles.counter}>
+              {remainingGuesses}/{maxGuesses}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onSubmit}
+          disabled={disabled || loading || !value.trim()}
+          style={{
+            ...styles.button,
+            ...(disabled || loading || !value.trim() ? styles.buttonDisabled : {}),
+          }}
+        >
+          {loading ? (
+            <div style={styles.spinner} />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
+  wrapper: {
+    width: "100%",
+  },
   container: {
     display: "flex",
     gap: "8px",
     width: "100%",
   },
-  input: {
+  inputWrapper: {
     flex: 1,
+    position: "relative",
+  },
+  input: {
+    width: "100%",
     padding: "14px 16px",
+    paddingRight: "50px",
     fontSize: "1rem",
     border: "2px solid var(--border)",
     borderRadius: "8px",
@@ -88,6 +111,7 @@ const styles: Record<string, CSSProperties> = {
     color: "var(--foreground)",
     outline: "none",
     transition: "border-color 0.2s, box-shadow 0.2s",
+    boxSizing: "border-box",
   },
   inputDisabled: {
     opacity: 0.5,
@@ -117,5 +141,15 @@ const styles: Record<string, CSSProperties> = {
     borderTopColor: "white",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
+  },
+  counter: {
+    position: "absolute",
+    right: "14px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    color: "var(--muted)",
+    pointerEvents: "none",
   },
 };
