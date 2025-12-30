@@ -34,8 +34,22 @@ export default function HelpModal({ onClose }: Props) {
 
         <div style={styles.section}>
           <p style={styles.text}>
-            Figure out what the map is showing. You have 5 guesses to get it right.
+            Figure out what the map is showing. You have a limited number of guesses to get it right.
           </p>
+        </div>
+
+        {/* Example */}
+        <div style={styles.exampleSection}>
+          <div style={styles.exampleImageContainer}>
+            <img
+              src="/example-map.png"
+              alt="Example map showing forest coverage by US state"
+              style={styles.exampleImage}
+            />
+          </div>
+          <div style={styles.exampleAnswer}>
+            <span style={styles.exampleLabel}>Answer:</span> % of Forest Coverage
+          </div>
         </div>
 
         <div style={styles.section}>
@@ -178,5 +192,29 @@ const styles: Record<string, CSSProperties> = {
   exampleText: {
     fontSize: "0.875rem",
     lineHeight: 1.4,
+  },
+  exampleSection: {
+    marginBottom: "16px",
+  },
+  exampleImageContainer: {
+    borderRadius: "8px",
+    overflow: "hidden",
+    marginBottom: "8px",
+  },
+  exampleImage: {
+    width: "100%",
+    display: "block",
+  },
+  exampleAnswer: {
+    textAlign: "center",
+    fontSize: "0.875rem",
+    padding: "8px 12px",
+    backgroundColor: "var(--correct-bg)",
+    border: "1px solid var(--correct)",
+    borderRadius: "6px",
+    color: "var(--correct)",
+  },
+  exampleLabel: {
+    fontWeight: 600,
   },
 };
