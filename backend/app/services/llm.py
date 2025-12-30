@@ -100,7 +100,7 @@ The correct answer is: "{answer}"{variants_text}
 
 The user guessed: "{guess}"
 
-Determine if the guess is essentially correct - it should capture the same core concept/data being shown on the map, even if worded differently.
+The guess must capture the COMPLETE concept shown on the map, not just a partial keyword.
 
 Be lenient with:
 - Different word orders
@@ -108,12 +108,16 @@ Be lenient with:
 - Minor spelling errors
 - Abbreviations vs full words
 - Articles (the, a, an)
-- Synonymous terms
+- Synonymous terms (e.g., "production" vs "output")
 
-Be strict about:
+Be STRICT about:
+- The guess must include the full concept, not just a keyword (e.g., if the answer is "beef production", just "beef" is NOT correct - they need to mention production/output/etc.)
 - The actual subject matter (e.g., "income" vs "population" are different)
 - Geographic scope if specified (e.g., "US" vs "world" are different)
 - The type of data (e.g., "median" vs "average" vs "total" matter)
+- What is being measured (e.g., "forest coverage" vs just "forests", "population density" vs just "population")
+
+The user should demonstrate they understand what data/metric the map is displaying, not just recognize a topic.
 
 Respond with JSON only."""
 
