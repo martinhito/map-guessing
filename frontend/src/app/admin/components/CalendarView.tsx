@@ -392,7 +392,7 @@ export default function CalendarView({ password }: Props) {
       setEditingPuzzle(data);
       setEditForm({
         answer: data.answer,
-        hints: data.hints.join(", "),
+        hints: JSON.stringify(data.hints),
         synonyms: JSON.stringify(data.answerVariants.filter(v => v.toLowerCase() !== data.answer.toLowerCase())),
         maxGuesses: data.maxGuesses,
         similarityThreshold: data.similarityThreshold,
@@ -696,13 +696,85 @@ export default function CalendarView({ password }: Props) {
 
                 {/* Hints */}
                 <div>
-                  <label style={styles.label}>Hints (comma-separated)</label>
-                  <textarea
-                    value={editForm.hints}
-                    onChange={(e) => setEditForm({ ...editForm, hints: e.target.value })}
-                    style={styles.textarea}
-                    rows={2}
-                  />
+                  <label style={styles.label}>Hints</label>
+                  <div style={styles.synonymList}>
+                    {(() => {
+                      try {
+                        const arr = JSON.parse(editForm.hints);
+                        return Array.isArray(arr) ? arr : [];
+                      } catch {
+                        return [];
+                      }
+                    })().map((hint: string, index: number) => (
+                      <div key={index} style={styles.synonymItem}>
+                        <input
+                          type="text"
+                          value={hint}
+                          onChange={(e) => {
+                            const arr = JSON.parse(editForm.hints);
+                            arr[index] = e.target.value;
+                            setEditForm({ ...editForm, hints: JSON.stringify(arr) });
+                          }}
+                          style={{ ...styles.input, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = JSON.parse(editForm.hints);
+                            arr.splice(index, 1);
+                            setEditForm({ ...editForm, hints: JSON.stringify(arr) });
+                          }}
+                          style={styles.buttonDangerSmall}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={styles.addSynonymRow}>
+                    <input
+                      type="text"
+                      placeholder="Add a hint..."
+                      style={{ ...styles.input, flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            try {
+                              const arr = JSON.parse(editForm.hints || "[]");
+                              arr.push(input.value.trim());
+                              setEditForm({ ...editForm, hints: JSON.stringify(arr) });
+                              input.value = "";
+                            } catch {
+                              setEditForm({ ...editForm, hints: JSON.stringify([input.value.trim()]) });
+                              input.value = "";
+                            }
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
+                        if (input.value.trim()) {
+                          try {
+                            const arr = JSON.parse(editForm.hints || "[]");
+                            arr.push(input.value.trim());
+                            setEditForm({ ...editForm, hints: JSON.stringify(arr) });
+                            input.value = "";
+                          } catch {
+                            setEditForm({ ...editForm, hints: JSON.stringify([input.value.trim()]) });
+                            input.value = "";
+                          }
+                        }
+                      }}
+                      style={{ ...styles.button, ...styles.buttonSecondary, padding: "8px 16px" }}
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
 
                 {/* Synonyms */}

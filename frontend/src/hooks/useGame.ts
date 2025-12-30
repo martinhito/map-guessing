@@ -114,7 +114,7 @@ export function useGame(puzzleId?: string) {
 
   const makeGuess = useCallback(
     async (guess: string): Promise<GuessResponse | undefined> => {
-      if (!state.puzzle || state.gameOver) return;
+      if (!state.puzzle || state.gameOver || state.loading) return;
 
       setState((prev) => ({ ...prev, loading: true, error: null }));
       try {
@@ -148,7 +148,7 @@ export function useGame(puzzleId?: string) {
         return undefined;
       }
     },
-    [state.puzzle, state.gameOver]
+    [state.puzzle, state.gameOver, state.loading]
   );
 
   const revealHint = useCallback(async (): Promise<HintResponse | undefined> => {

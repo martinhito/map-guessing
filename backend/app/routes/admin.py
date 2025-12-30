@@ -141,8 +141,13 @@ async def create_puzzle(
     # Determine puzzle date
     puzzle_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Parse hints (comma-separated)
-    hints_list = [h.strip() for h in hints.split(",") if h.strip()] if hints else []
+    # Parse hints (JSON array or comma-separated for backwards compatibility)
+    hints_list = []
+    if hints:
+        try:
+            hints_list = json.loads(hints)
+        except json.JSONDecodeError:
+            hints_list = [h.strip() for h in hints.split(",") if h.strip()]
 
     # Parse synonyms (JSON array)
     synonyms_list = []
@@ -455,8 +460,13 @@ async def update_puzzle(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Parse hints
-    hints_list = [h.strip() for h in hints.split(",") if h.strip()] if hints else []
+    # Parse hints (JSON array or comma-separated for backwards compatibility)
+    hints_list = []
+    if hints:
+        try:
+            hints_list = json.loads(hints)
+        except json.JSONDecodeError:
+            hints_list = [h.strip() for h in hints.split(",") if h.strip()]
 
     # Parse synonyms
     synonyms_list = []
