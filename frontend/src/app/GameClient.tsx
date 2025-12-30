@@ -390,13 +390,13 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: "none",
   },
   sourceRevealBtn: {
-    background: "none",
-    border: "none",
+    background: "var(--background)",
+    border: "1px dashed var(--border-dark)",
     color: "var(--muted)",
     fontSize: "0.75rem",
     cursor: "pointer",
-    padding: "4px 8px",
-    borderRadius: "4px",
-    transition: "background-color 0.2s",
+    padding: "6px 12px",
+    borderRadius: "12px",
+    transition: "all 0.2s",
   },
 };
