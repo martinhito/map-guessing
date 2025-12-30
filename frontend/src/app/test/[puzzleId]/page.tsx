@@ -146,8 +146,13 @@ export default function TestPuzzlePage() {
                   }}
                 >
                   <span style={styles.guessRowText}>{attempt.guess}</span>
-                  <span style={styles.guessRowPercent}>
-                    {Math.min(Math.round(ratio * 100), 100)}%
+                  <span style={styles.guessRowRight}>
+                    <span style={styles.guessRowLabel}>
+                      {getLabel(attempt.similarity, puzzle.similarityThreshold)}
+                    </span>
+                    <span style={styles.guessRowPercent}>
+                      {Math.min(Math.round(ratio * 100), 100)}%
+                    </span>
                   </span>
                 </div>
               );
@@ -215,10 +220,20 @@ export default function TestPuzzlePage() {
 
 function getSlotColor(similarity: number, threshold: number): string {
   const ratio = similarity / threshold;
-  if (ratio >= 1) return "var(--correct)";   // Green - correct
-  if (ratio >= 0.65) return "var(--close)";  // Yellow - close
-  if (ratio >= 0.35) return "var(--warm)";   // Orange - pretty wrong
-  return "var(--cold)";                       // Red - very wrong
+  if (ratio >= 1) return "var(--correct)";   // Green
+  if (ratio >= 0.70) return "var(--close)";  // Yellow
+  if (ratio >= 0.45) return "var(--warm)";   // Orange
+  return "var(--cold)";                       // Red
+}
+
+function getLabel(similarity: number, threshold: number): string {
+  const ratio = similarity / threshold;
+  if (ratio >= 1) return "Correct!";
+  if (ratio >= 0.85) return "Very Close";
+  if (ratio >= 0.70) return "Close";
+  if (ratio >= 0.55) return "On Track";
+  if (ratio >= 0.40) return "Getting There";
+  return "Way Off";
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -307,20 +322,54 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--primary)",
     textDecoration: "none",
   },
-  guessSlots: {
+  guessBoard: {
     display: "flex",
-    gap: "6px",
-    justifyContent: "center",
+    flexDirection: "column",
+    gap: "8px",
+    width: "100%",
   },
-  guessSlot: {
-    width: "32px",
-    height: "8px",
-    borderRadius: "4px",
-    backgroundColor: "var(--border)",
-    transition: "background-color 0.3s ease",
+  guessRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 16px",
+    borderRadius: "8px",
+    border: "2px solid var(--border)",
+    backgroundColor: "var(--card-bg)",
+    minHeight: "52px",
   },
-  guessSlotCurrent: {
-    backgroundColor: "var(--border-dark)",
+  guessRowFilled: {
+    color: "white",
+  },
+  guessRowText: {
+    fontSize: "0.9375rem",
+    fontWeight: 500,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    flex: 1,
+  },
+  guessRowRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexShrink: 0,
+  },
+  guessRowLabel: {
+    fontSize: "0.6875rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+    opacity: 0.9,
+  },
+  guessRowPercent: {
+    fontSize: "0.8125rem",
+    fontWeight: 700,
+    minWidth: "40px",
+    textAlign: "right",
+  },
+  guessRowEmpty: {
+    color: "transparent",
   },
   showResultBtn: {
     position: "fixed",

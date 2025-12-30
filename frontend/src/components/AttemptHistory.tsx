@@ -90,7 +90,15 @@ function getTemperatureStyle(ratio: number): {
       label: "CORRECT!",
     };
   }
-  if (ratio >= 0.65) {
+  if (ratio >= 0.85) {
+    return {
+      bg: "var(--close-bg)",
+      border: "var(--close)",
+      color: "var(--close)",
+      label: "Very Close",
+    };
+  }
+  if (ratio >= 0.70) {
     return {
       bg: "var(--close-bg)",
       border: "var(--close)",
@@ -98,19 +106,27 @@ function getTemperatureStyle(ratio: number): {
       label: "Close",
     };
   }
-  if (ratio >= 0.35) {
+  if (ratio >= 0.55) {
     return {
       bg: "var(--warm-bg)",
       border: "var(--warm)",
       color: "var(--warm)",
-      label: "Warm",
+      label: "On Track",
+    };
+  }
+  if (ratio >= 0.40) {
+    return {
+      bg: "var(--warm-bg)",
+      border: "var(--warm)",
+      color: "var(--warm)",
+      label: "Getting There",
     };
   }
   return {
     bg: "var(--cold-bg)",
     border: "var(--cold)",
     color: "var(--cold)",
-    label: "Cold",
+    label: "Way Off",
   };
 }
 

@@ -159,8 +159,13 @@ export default function GameClient() {
                   }}
                 >
                   <span style={styles.guessRowText}>{attempt.guess}</span>
-                  <span style={styles.guessRowPercent}>
-                    {Math.min(Math.round(ratio * 100), 100)}%
+                  <span style={styles.guessRowRight}>
+                    <span style={styles.guessRowLabel}>
+                      {getLabel(attempt.similarity, puzzle.similarityThreshold)}
+                    </span>
+                    <span style={styles.guessRowPercent}>
+                      {Math.min(Math.round(ratio * 100), 100)}%
+                    </span>
                   </span>
                 </div>
               );
@@ -254,10 +259,20 @@ export default function GameClient() {
 
 function getSlotColor(similarity: number, threshold: number): string {
   const ratio = similarity / threshold;
-  if (ratio >= 1) return "var(--correct)";   // Green - correct
-  if (ratio >= 0.65) return "var(--close)";  // Yellow - close
-  if (ratio >= 0.35) return "var(--warm)";   // Orange - pretty wrong
-  return "var(--cold)";                       // Red - very wrong
+  if (ratio >= 1) return "var(--correct)";   // Green
+  if (ratio >= 0.70) return "var(--close)";  // Yellow
+  if (ratio >= 0.45) return "var(--warm)";   // Orange
+  return "var(--cold)";                       // Red
+}
+
+function getLabel(similarity: number, threshold: number): string {
+  const ratio = similarity / threshold;
+  if (ratio >= 1) return "Correct!";
+  if (ratio >= 0.85) return "Very Close";
+  if (ratio >= 0.70) return "Close";
+  if (ratio >= 0.55) return "On Track";
+  if (ratio >= 0.40) return "Getting There";
+  return "Way Off";
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -373,11 +388,24 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
     flex: 1,
   },
+  guessRowRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexShrink: 0,
+  },
+  guessRowLabel: {
+    fontSize: "0.6875rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+    opacity: 0.9,
+  },
   guessRowPercent: {
     fontSize: "0.8125rem",
     fontWeight: 700,
-    marginLeft: "12px",
-    flexShrink: 0,
+    minWidth: "40px",
+    textAlign: "right",
   },
   guessRowEmpty: {
     color: "transparent",
