@@ -75,13 +75,13 @@ export default function HelpModal({ onClose }: Props) {
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--close)" }} />
             <div style={styles.exampleText}>
-              <strong>Yellow</strong> — Hot! Almost there
+              <strong>Orange</strong> — Hot! Almost there
             </div>
           </div>
           <div style={styles.example}>
             <div style={{ ...styles.colorBlock, backgroundColor: "var(--warm)" }} />
             <div style={styles.exampleText}>
-              <strong>Orange</strong> — Getting warmer
+              <strong>Yellow</strong> — Getting warmer
             </div>
           </div>
           <div style={styles.example}>
