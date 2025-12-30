@@ -12,10 +12,10 @@
   /* Game colors - temperature based */
   --correct: #6aaa64;
   --correct-bg: rgba(106, 170, 100, 0.15);
-  --close: #e07c3e;
-  --close-bg: rgba(224, 124, 62, 0.15);
-  --warm: #c9b458;
-  --warm-bg: rgba(201, 180, 88, 0.15);
+  --close: #c9b458;
+  --close-bg: rgba(201, 180, 88, 0.15);
+  --warm: #e07c3e;
+  --warm-bg: rgba(224, 124, 62, 0.15);
   --cold: #787c7e;
   --cold-bg: rgba(120, 124, 126, 0.15);
 
@@ -43,10 +43,10 @@
     /* Game colors stay vibrant in dark mode */
     --correct: #538d4e;
     --correct-bg: rgba(83, 141, 78, 0.2);
-    --close: #c76a2f;
-    --close-bg: rgba(199, 106, 47, 0.2);
-    --warm: #b59f3b;
-    --warm-bg: rgba(181, 159, 59, 0.2);
+    --close: #b59f3b;
+    --close-bg: rgba(181, 159, 59, 0.2);
+    --warm: #c76a2f;
+    --warm-bg: rgba(199, 106, 47, 0.2);
     --cold: #3a3a3c;
     --cold-bg: rgba(58, 58, 60, 0.5);
 
