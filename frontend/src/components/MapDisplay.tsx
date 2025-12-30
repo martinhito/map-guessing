@@ -26,14 +26,28 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
     );
   }
 
-  return (
-    <div style={styles.container}>
-      {!loaded && !error && (
+  if (!loaded && !error) {
+    return (
+      <div style={styles.container}>
         <div style={styles.loadingOverlay}>
           <div style={styles.spinner} />
         </div>
-      )}
-      {error ? (
+        {/* Hidden image to trigger load */}
+        <img
+          src={imageUrl}
+          alt=""
+          crossOrigin="anonymous"
+          style={{ display: "none" }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+        />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={styles.container}>
         <div style={styles.placeholder}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -42,19 +56,18 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
           </svg>
           <p style={styles.placeholderText}>Failed to load map</p>
         </div>
-      ) : (
-        <img
-          src={imageUrl}
-          alt={`Map puzzle ${puzzleId}`}
-          crossOrigin="anonymous"
-          style={{
-            ...styles.image,
-            opacity: loaded ? 1 : 0,
-          }}
-          onLoad={() => setLoaded(true)}
-          onError={() => setError(true)}
-        />
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.container}>
+      <img
+        src={imageUrl}
+        alt={`Map puzzle ${puzzleId}`}
+        crossOrigin="anonymous"
+        style={styles.image}
+      />
     </div>
   );
 }
@@ -62,41 +75,41 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
 const styles: Record<string, CSSProperties> = {
   container: {
     width: "100%",
-    aspectRatio: "4/3",
-    backgroundColor: "var(--card-bg)",
-    borderRadius: "12px",
+    borderRadius: "8px",
     overflow: "hidden",
-    border: "2px solid var(--border)",
     position: "relative",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
   },
   image: {
     width: "100%",
-    height: "100%",
-    objectFit: "contain",
+    display: "block",
     transition: "opacity 0.3s ease",
   },
   placeholder: {
     width: "100%",
-    height: "100%",
+    minHeight: "200px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     gap: "12px",
     color: "var(--muted)",
+    backgroundColor: "var(--card-bg)",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
   },
   placeholderText: {
     fontSize: "0.875rem",
     margin: 0,
   },
   loadingOverlay: {
-    position: "absolute",
-    inset: 0,
+    width: "100%",
+    minHeight: "200px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "var(--card-bg)",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
   },
   spinner: {
     width: "32px",
