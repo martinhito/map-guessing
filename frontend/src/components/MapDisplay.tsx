@@ -37,7 +37,6 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
         <img
           src={imageUrl}
           alt=""
-          crossOrigin="anonymous"
           style={{ display: "none" }}
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
@@ -67,7 +66,6 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
         <img
           src={imageUrl}
           alt={`Map puzzle ${puzzleId}`}
-          crossOrigin="anonymous"
           style={styles.image}
         />
         <div style={styles.zoomHint}>
@@ -91,7 +89,6 @@ export default function MapDisplay({ imageUrl, puzzleId }: Props) {
           <img
             src={imageUrl}
             alt={`Map puzzle ${puzzleId}`}
-            crossOrigin="anonymous"
             style={styles.modalImage}
             onClick={(e) => e.stopPropagation()}
           />
