@@ -106,6 +106,7 @@ async def get_user_attempts(
     player_id: Optional[str] = Cookie(None),
     x_player_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),
+    s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Get user's attempts for a specific puzzle."""
     effective_player_id = x_player_id or player_id
@@ -115,6 +116,19 @@ async def get_user_attempts(
     attempt_service = AttemptService(db)
     attempts = attempt_service.get_user_attempts(effective_player_id, puzzle_id)
     game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
+
+    # Check if game is over to reveal answer
+    answer = None
+    source_url = None
+    if game_state:
+        try:
+            puzzle = s3_service.get_puzzle(puzzle_id)
+            is_game_over = game_state.solved or game_state.total_guesses >= puzzle.maxGuesses
+            if is_game_over:
+                answer = puzzle.answer
+                source_url = puzzle.sourceUrl
+        except ValueError:
+            pass  # Puzzle not found, just don't include answer
 
     return AttemptsResponse(
         attempts=[
@@ -133,4 +147,6 @@ async def get_user_attempts(
         }
         if game_state
         else None,
+        answer=answer,
+        sourceUrl=source_url,
     )

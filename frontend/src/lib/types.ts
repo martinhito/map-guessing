@@ -41,6 +41,8 @@ export interface GameStateResponse {
 export interface AttemptsResponse {
   attempts: Attempt[];
   gameState: GameStateResponse | null;
+  answer: string | null;
+  sourceUrl: string | null;
 }
 
 export interface GameState {

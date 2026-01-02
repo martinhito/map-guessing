@@ -88,3 +88,5 @@ class AttemptInfo(BaseModel):
 class AttemptsResponse(BaseModel):
     attempts: List[AttemptInfo]
     gameState: Optional[dict] = None
+    answer: Optional[str] = None  # Revealed when game is over
+    sourceUrl: Optional[str] = None  # Revealed when game is over

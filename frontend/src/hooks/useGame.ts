@@ -101,6 +101,8 @@ export function useGame(puzzleId?: string) {
         hints: hintsData.hints,
         solved: gameState?.solved || false,
         gameOver: isGameOver,
+        answer: attemptsData.answer,
+        sourceUrl: attemptsData.sourceUrl,
         loading: false,
       }));
     } catch (error) {
