@@ -306,9 +306,10 @@ const styles: Record<string, CSSProperties> = {
 };
 
 export default function CalendarView({ password }: Props) {
+  // Use function initializers to ensure client-side date is used
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
   const [schedule, setSchedule] = useState<Record<string, ScheduledPuzzle>>({});
   const [loading, setLoading] = useState(true);
 
