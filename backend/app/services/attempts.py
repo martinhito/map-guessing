@@ -73,8 +73,20 @@ class AttemptService:
         self.db.refresh(game_state)
         return game_state
 
-    def record_hint_used(self, user_id: str, puzzle_date: str) -> int:
-        """Record that a hint was revealed. Returns new hint count."""
+    def record_hint_used(self, user_id: str, puzzle_date: str, hint_text: str) -> int:
+        """Record that a hint was revealed. Costs one guess. Returns new hint count."""
+        # Create attempt record for the hint
+        attempt = UserAttempt(
+            user_id=user_id,
+            puzzle_date=puzzle_date,
+            guess_text=hint_text,
+            similarity_score=0.0,
+            is_correct=False,
+            is_hint=True,
+        )
+        self.db.add(attempt)
+
+        # Update or create game state
         game_state = self.get_game_state(user_id, puzzle_date)
         if not game_state:
             game_state = DailyGameState(
@@ -87,6 +99,7 @@ class AttemptService:
             self.db.add(game_state)
 
         game_state.hints_revealed += 1
+        game_state.total_guesses += 1  # Hints cost a guess!
         self.db.commit()
         return game_state.hints_revealed
 

@@ -7,16 +7,17 @@ Base = declarative_base()
 
 
 class UserAttempt(Base):
-    """Records individual guess attempts."""
+    """Records individual guess attempts and hints."""
 
     __tablename__ = "user_attempts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(64), nullable=False, index=True)
     puzzle_date = Column(String(10), nullable=False, index=True)
-    guess_text = Column(String(512), nullable=False)
-    similarity_score = Column(Float, nullable=False)
+    guess_text = Column(String(512), nullable=False)  # For hints, stores hint text
+    similarity_score = Column(Float, nullable=False)  # 0 for hints
     is_correct = Column(Boolean, default=False)
+    is_hint = Column(Boolean, default=False)  # True if this is a hint, not a guess
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (

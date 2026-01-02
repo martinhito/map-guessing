@@ -23,13 +23,16 @@ export interface HintResponse {
   hintIndex: number;
   hintText: string;
   hintsRemaining: number;
+  remainingGuesses?: number;  // Guesses left after hint (hints cost 1 guess)
+  gameOver?: boolean;  // True if this hint used the last guess
 }
 
 export interface Attempt {
-  guess: string;
-  similarity: number;
+  guess: string;  // For hints, this is the hint text
+  similarity: number;  // 0 for hints
   correct: boolean;
   timestamp: string;
+  isHint?: boolean;  // True if this is a hint, not a guess
 }
 
 export interface GameStateResponse {

@@ -40,23 +40,25 @@ export default function ResultModal({
   // Reverse attempts so oldest is first (left to right)
   const orderedAttempts = [...attempts].reverse();
 
-  const getColor = (similarity: number) => {
-    const ratio = similarity / threshold;
+  const getColor = (attempt: Attempt) => {
+    if (attempt.isHint) return { css: "var(--hint)", hex: "#7c3aed" };
+    const ratio = attempt.similarity / threshold;
     if (ratio >= 1) return { css: "var(--correct)", hex: "#22c55e" };
-    if (ratio >= 0.8) return { css: "var(--close)", hex: "#eab308" };
-    if (ratio >= 0.5) return { css: "var(--warm)", hex: "#f97316" };
-    return { css: "var(--cold)", hex: "#3b3b3b" };
+    if (ratio >= 0.70) return { css: "var(--close)", hex: "#eab308" };
+    if (ratio >= 0.45) return { css: "var(--warm)", hex: "#f97316" };
+    return { css: "var(--cold)", hex: "#dc3545" };
   };
 
   const generateShareText = (includeUrl = true) => {
     const result = solved ? `${attempts.length}/${maxGuesses}` : `X/${maxGuesses}`;
 
     const grid = orderedAttempts.map((attempt) => {
+      if (attempt.isHint) return "🟪";  // Purple for hints
       const ratio = attempt.similarity / threshold;
       if (ratio >= 1) return "🟩";
-      if (ratio >= 0.8) return "🟨";
-      if (ratio >= 0.5) return "🟧";
-      return "⬛";
+      if (ratio >= 0.70) return "🟨";
+      if (ratio >= 0.45) return "🟧";
+      return "🟥";
     }).join("");
 
     const base = `Can You Guess the Map?
@@ -110,7 +112,7 @@ https://canyouguessthemap.com` : base;
         const attempt = orderedAttempts[i];
 
         if (attempt) {
-          ctx.fillStyle = getColor(attempt.similarity).hex;
+          ctx.fillStyle = getColor(attempt).hex;
         } else {
           ctx.fillStyle = "#2a2a3e";
           ctx.strokeStyle = "#444";
@@ -322,7 +324,7 @@ https://canyouguessthemap.com` : base;
           </div>
           <div style={styles.statItem}>
             <span style={styles.statValue}>
-              {Math.min(Math.round((Math.max(...attempts.map((a) => a.similarity)) / threshold) * 100), 100)}%
+              {Math.min(Math.round((Math.max(...attempts.filter((a) => !a.isHint).map((a) => a.similarity), 0) / threshold) * 100), 100)}%
             </span>
             <span style={styles.statLabel}>Best</span>
           </div>
@@ -331,20 +333,24 @@ https://canyouguessthemap.com` : base;
         {/* Guess visualization - oldest first (left to right) */}
         <div style={styles.guessViz}>
           {orderedAttempts.map((attempt, i) => {
-            const isWinningGuess = attempt.similarity / threshold >= 1;
+            const isWinningGuess = !attempt.isHint && attempt.similarity / threshold >= 1;
+            const isHint = attempt.isHint;
             return (
               <div
                 key={i}
                 style={{
                   ...styles.guessBlock,
-                  backgroundColor: getColor(attempt.similarity).css,
+                  backgroundColor: getColor(attempt).css,
                 }}
-                title={`${Math.round(attempt.similarity * 100)}%`}
+                title={isHint ? "Hint" : `${Math.round(attempt.similarity * 100)}%`}
               >
                 {isWinningGuess && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
+                )}
+                {isHint && (
+                  <span style={{ fontSize: "14px" }}>💡</span>
                 )}
               </div>
             );

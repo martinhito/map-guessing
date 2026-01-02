@@ -19,7 +19,7 @@ async def get_hint(
     s3_service: S3PuzzleService = Depends(get_s3_service),
     db: Session = Depends(get_db),
 ):
-    """Get next hint for the puzzle."""
+    """Get next hint for the puzzle. Costs one guess."""
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")
@@ -35,18 +35,34 @@ async def get_hint(
     attempt_service = AttemptService(db)
     game_state = attempt_service.get_game_state(effective_player_id, puzzle_id)
     hints_revealed = game_state.hints_revealed if game_state else 0
+    total_guesses = game_state.total_guesses if game_state else 0
+
+    # Check if game is already over
+    if game_state and game_state.solved:
+        raise HTTPException(status_code=400, detail="Game already solved")
+
+    if total_guesses >= puzzle.maxGuesses:
+        raise HTTPException(status_code=400, detail="No guesses remaining")
 
     if hints_revealed >= len(puzzle.hints):
         raise HTTPException(status_code=400, detail="All hints already revealed")
 
-    # Record hint usage and get next hint
-    new_hint_count = attempt_service.record_hint_used(effective_player_id, puzzle_id)
+    # Get the hint text before recording (need it for the attempt record)
+    hint_text = puzzle.hints[hints_revealed]
+
+    # Record hint usage (creates attempt and increments total_guesses)
+    new_hint_count = attempt_service.record_hint_used(effective_player_id, puzzle_id, hint_text)
     hint_index = new_hint_count - 1
+
+    # Calculate remaining guesses after this hint
+    remaining_guesses = puzzle.maxGuesses - (total_guesses + 1)
 
     return HintResponse(
         hintIndex=hint_index,
-        hintText=puzzle.hints[hint_index],
+        hintText=hint_text,
         hintsRemaining=len(puzzle.hints) - new_hint_count,
+        remainingGuesses=remaining_guesses,
+        gameOver=remaining_guesses <= 0,
     )
 
 

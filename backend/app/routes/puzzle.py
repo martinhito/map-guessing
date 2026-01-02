@@ -137,6 +137,7 @@ async def get_user_attempts(
                 similarity=a.similarity_score,
                 correct=a.is_correct,
                 timestamp=a.created_at.isoformat(),
+                isHint=getattr(a, 'is_hint', False),
             )
             for a in attempts
         ],

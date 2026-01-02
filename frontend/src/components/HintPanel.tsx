@@ -33,20 +33,23 @@ export default function HintPanel({
           </span>
         </div>
         {hintsRemaining > 0 && (
-          <button
-            onClick={onRevealHint}
-            disabled={!canReveal}
-            style={{
-              ...styles.button,
-              ...(!canReveal ? styles.buttonDisabled : {}),
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            Reveal
-          </button>
+          <div style={styles.buttonGroup}>
+            <button
+              onClick={onRevealHint}
+              disabled={!canReveal}
+              style={{
+                ...styles.button,
+                ...(!canReveal ? styles.buttonDisabled : {}),
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Reveal
+            </button>
+            <span style={styles.costLabel}>costs 1 guess</span>
+          </div>
         )}
       </div>
 
@@ -74,9 +77,10 @@ const styles: Record<string, CSSProperties> = {
   container: {
     width: "100%",
     padding: "16px",
-    backgroundColor: "rgba(99, 102, 241, 0.05)",
+    backgroundColor: "var(--hint-bg)",
     borderRadius: "12px",
-    border: "2px dashed rgba(99, 102, 241, 0.3)",
+    border: "2px dashed var(--hint)",
+    opacity: 0.9,
   },
   header: {
     display: "flex",
@@ -88,7 +92,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    color: "#6366f1",
+    color: "var(--hint)",
   },
   title: {
     fontSize: "0.8125rem",
@@ -99,9 +103,15 @@ const styles: Record<string, CSSProperties> = {
   count: {
     fontSize: "0.75rem",
     padding: "2px 6px",
-    backgroundColor: "rgba(99, 102, 241, 0.15)",
+    backgroundColor: "var(--hint-bg)",
     borderRadius: "4px",
-    color: "#6366f1",
+    color: "var(--hint)",
+  },
+  buttonGroup: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: "4px",
   },
   button: {
     display: "flex",
@@ -110,7 +120,7 @@ const styles: Record<string, CSSProperties> = {
     padding: "8px 14px",
     fontSize: "0.8125rem",
     fontWeight: 600,
-    backgroundColor: "#6366f1",
+    backgroundColor: "var(--hint)",
     color: "white",
     border: "none",
     borderRadius: "6px",
@@ -119,6 +129,11 @@ const styles: Record<string, CSSProperties> = {
   buttonDisabled: {
     backgroundColor: "var(--muted)",
     cursor: "not-allowed",
+  },
+  costLabel: {
+    fontSize: "0.6875rem",
+    color: "var(--muted)",
+    fontStyle: "italic",
   },
   hintsList: {
     display: "flex",
@@ -130,9 +145,9 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-start",
     gap: "10px",
     padding: "10px 12px",
-    backgroundColor: "rgba(99, 102, 241, 0.08)",
+    backgroundColor: "var(--hint-bg)",
     borderRadius: "8px",
-    borderLeft: "3px solid #6366f1",
+    borderLeft: "3px solid var(--hint)",
   },
   hintNumber: {
     display: "flex",
@@ -142,7 +157,7 @@ const styles: Record<string, CSSProperties> = {
     height: "20px",
     fontSize: "0.6875rem",
     fontWeight: 700,
-    backgroundColor: "#6366f1",
+    backgroundColor: "var(--hint)",
     color: "white",
     borderRadius: "50%",
     flexShrink: 0,
@@ -152,7 +167,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.4,
   },
   noHints: {
-    color: "#6366f1",
+    color: "var(--hint)",
     fontSize: "0.875rem",
     textAlign: "center",
     padding: "8px 0",

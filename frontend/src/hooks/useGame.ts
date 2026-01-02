@@ -159,22 +159,38 @@ export function useGame(puzzleId?: string) {
   );
 
   const revealHint = useCallback(async (): Promise<HintResponse | undefined> => {
-    if (!state.puzzle) return;
+    if (!state.puzzle || state.gameOver || state.loading) return;
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
       const hint: HintResponse = await fetchHint(state.puzzle.id);
+
+      // Create a hint "attempt" entry for the timeline
+      const hintAttempt: Attempt = {
+        guess: hint.hintText,
+        similarity: 0,
+        correct: false,
+        timestamp: new Date().toISOString(),
+        isHint: true,
+      };
+
       setState((prev) => ({
         ...prev,
         hints: [...prev.hints, hint.hintText],
+        attempts: [hintAttempt, ...prev.attempts],  // Add hint to attempts timeline
+        gameOver: hint.gameOver || false,
+        loading: false,
       }));
       return hint;
     } catch (error) {
       setState((prev) => ({
         ...prev,
+        loading: false,
         error: error instanceof Error ? error.message : "Failed to get hint",
       }));
     }
-  }, [state.puzzle]);
+  }, [state.puzzle, state.gameOver, state.loading]);
 
   const remainingGuesses = state.puzzle
     ? state.puzzle.maxGuesses - state.attempts.length

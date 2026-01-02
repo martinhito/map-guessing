@@ -90,6 +90,14 @@ export default function HelpModal({ onClose }: Props) {
               <strong>Way Off</strong> — Try something different
             </div>
           </div>
+          <div style={styles.example}>
+            <div style={{ ...styles.colorBlock, backgroundColor: "var(--hint)" }}>
+              <span style={{ fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>💡</span>
+            </div>
+            <div style={styles.exampleText}>
+              <strong>Hint</strong> — Spent a guess to get a clue
+            </div>
+          </div>
         </div>
 
         <div style={styles.divider} />
@@ -99,7 +107,7 @@ export default function HelpModal({ onClose }: Props) {
             New puzzle every day at midnight EST.
           </p>
           <p style={styles.textSmall}>
-            Some puzzles include hints or a data source to help you out — look for them below the map!
+            Stuck? You can spend a guess to reveal a hint — but use them wisely!
           </p>
         </div>
       </div>

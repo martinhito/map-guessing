@@ -18,6 +18,8 @@
   --warm-bg: rgba(224, 124, 62, 0.15);
   --cold: #dc3545;         /* Red - very wrong */
   --cold-bg: rgba(220, 53, 69, 0.15);
+  --hint: #7c3aed;         /* Purple - hint */
+  --hint-bg: rgba(124, 58, 237, 0.15);
 
   /* Legacy aliases */
   --primary: #6aaa64;
@@ -49,6 +51,8 @@
     --warm-bg: rgba(199, 106, 47, 0.2);
     --cold: #c53030;         /* Red - very wrong */
     --cold-bg: rgba(197, 48, 48, 0.2);
+    --hint: #8b5cf6;         /* Purple - hint */
+    --hint-bg: rgba(139, 92, 246, 0.2);
 
     --header-bg: #121213;
     --header-border: #3a3a3c;

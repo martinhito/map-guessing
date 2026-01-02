@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useGame } from "@/hooks/useGame";
 import MapDisplay from "@/components/MapDisplay";
 import GuessInput from "@/components/GuessInput";
-import HintPanel from "@/components/HintPanel";
 import ResultModal from "@/components/ResultModal";
 import HelpModal from "@/components/HelpModal";
 
@@ -146,6 +145,27 @@ export default function GameClient() {
             const isCurrentRow = i === attempts.length && !gameOver;
 
             if (attempt) {
+              // Check if this is a hint
+              if (attempt.isHint) {
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      ...styles.guessRow,
+                      ...styles.guessRowFilled,
+                      backgroundColor: "var(--hint)",
+                      borderColor: "var(--hint)",
+                    }}
+                  >
+                    <span style={styles.guessRowText}>
+                      <span style={{ opacity: 0.8, marginRight: "8px" }}>💡</span>
+                      {attempt.guess}
+                    </span>
+                    <span style={styles.guessRowLabel}>HINT</span>
+                  </div>
+                );
+              }
+
               // Filled row - show the guess with color
               const ratio = attempt.similarity / puzzle.similarityThreshold;
               return (
@@ -179,9 +199,12 @@ export default function GameClient() {
                     value={inputValue}
                     onChange={setInputValue}
                     onSubmit={handleSubmit}
-                    disabled={gameOver}
+                    disabled={gameOver || loading}
                     loading={loading}
                     placeholder="What does this map show?"
+                    hintsAvailable={puzzle.hintsAvailable}
+                    hintsUsed={hints.length}
+                    onRevealHint={revealHint}
                   />
                 </div>
               );
@@ -196,15 +219,6 @@ export default function GameClient() {
           })}
         </div>
 
-        {/* Hints */}
-        {puzzle.hintsAvailable > 0 && (
-          <HintPanel
-            hints={hints}
-            hintsAvailable={puzzle.hintsAvailable}
-            onRevealHint={revealHint}
-            disabled={gameOver}
-          />
-        )}
       </main>
 
       {/* Result modal */}
@@ -444,6 +458,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--muted)",
     textAlign: "center",
     marginTop: "-8px",
+    minHeight: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   sourceLink: {
     color: "var(--primary)",

@@ -76,13 +76,16 @@ class HintResponse(BaseModel):
     hintIndex: int
     hintText: str
     hintsRemaining: int
+    remainingGuesses: Optional[int] = None  # Guesses left after hint (hints cost 1 guess)
+    gameOver: bool = False  # True if this hint used the last guess
 
 
 class AttemptInfo(BaseModel):
-    guess: str
-    similarity: float
+    guess: str  # For hints, this is the hint text
+    similarity: float  # 0 for hints
     correct: bool
     timestamp: str
+    isHint: bool = False  # True if this is a hint, not a guess
 
 
 class AttemptsResponse(BaseModel):

@@ -8,10 +8,25 @@ from app.db.database import engine
 from app.db.models import Base
 
 
+def run_migrations(engine):
+    """Run database migrations for new columns."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        # Add is_hint column if it doesn't exist
+        try:
+            conn.execute(text("ALTER TABLE user_attempts ADD COLUMN is_hint BOOLEAN DEFAULT FALSE"))
+            conn.commit()
+            print("Migration: Added is_hint column to user_attempts")
+        except Exception:
+            pass  # Column already exists
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create database tables
     Base.metadata.create_all(bind=engine)
+    # Run migrations for new columns
+    run_migrations(engine)
     yield
     # Shutdown: cleanup if needed
 
