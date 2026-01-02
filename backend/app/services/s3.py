@@ -163,15 +163,10 @@ class S3PuzzleService:
         elif not puzzle.inEndlessPool and puzzle.id in index.endlessPool:
             index.endlessPool.remove(puzzle.id)
 
-        # Update daily schedule
+        # Update daily schedule - only add if scheduledDate is set
+        # Don't remove from other dates (allows puzzle reuse)
         if puzzle.scheduledDate:
             index.dailySchedule[puzzle.scheduledDate] = puzzle.id
-        else:
-            # Remove from any date it might be scheduled
-            index.dailySchedule = {
-                date: pid for date, pid in index.dailySchedule.items()
-                if pid != puzzle.id
-            }
 
         self.save_puzzle_index(index)
 
@@ -211,30 +206,43 @@ class S3PuzzleService:
         return puzzle
 
     def schedule_puzzle(self, puzzle_id: str, date: Optional[str]) -> PuzzleMetadata:
-        """Schedule or unschedule a puzzle for a specific date."""
+        """Schedule a puzzle for a specific date.
+
+        Puzzles can be assigned to multiple dates (reused).
+        Setting date=None will unschedule from the puzzle's current scheduledDate only.
+        """
         puzzle = self.get_puzzle(puzzle_id)
         old_date = puzzle.scheduledDate
-        puzzle.scheduledDate = date
-
-        # Update puzzle file
-        self._save_puzzle(puzzle)
 
         # Update index
         index = self.get_puzzle_index()
-        for p in index.puzzles:
-            if p.id == puzzle_id:
-                p.scheduledDate = date
-                break
 
-        # Remove from old date if any
-        if old_date and old_date in index.dailySchedule:
-            if index.dailySchedule[old_date] == puzzle_id:
-                del index.dailySchedule[old_date]
-
-        # Add to new date if specified
         if date:
+            # Assigning to a new date - add to dailySchedule
+            # Update the puzzle's scheduledDate to the latest one
+            puzzle.scheduledDate = date
             index.dailySchedule[date] = puzzle_id
 
+            # Update puzzle entry in index
+            for p in index.puzzles:
+                if p.id == puzzle_id:
+                    p.scheduledDate = date
+                    break
+        else:
+            # Unscheduling - only remove from the puzzle's current scheduledDate
+            puzzle.scheduledDate = None
+            if old_date and old_date in index.dailySchedule:
+                if index.dailySchedule[old_date] == puzzle_id:
+                    del index.dailySchedule[old_date]
+
+            # Update puzzle entry in index
+            for p in index.puzzles:
+                if p.id == puzzle_id:
+                    p.scheduledDate = None
+                    break
+
+        # Update puzzle file
+        self._save_puzzle(puzzle)
         self.save_puzzle_index(index)
 
         # Invalidate cache

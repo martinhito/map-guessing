@@ -308,7 +308,7 @@ export default function AdminPage() {
     new Date().toISOString().split("T")[0]
   );
   const [answer, setAnswer] = useState("");
-  const [hints, setHints] = useState("");
+  const [hints, setHints] = useState<string[]>([]);
   const [maxGuesses, setMaxGuesses] = useState(5);
   const [threshold, setThreshold] = useState(0.85);
   const [similarityMode, setSimilarityMode] = useState<"embedding" | "llm">("embedding");
@@ -478,7 +478,7 @@ export default function AdminPage() {
     const formData = new FormData();
     formData.append("imageUrl", uploadedImageUrl);
     formData.append("answer", answer);
-    formData.append("hints", hints);
+    formData.append("hints", JSON.stringify(hints));
     formData.append("synonyms", JSON.stringify(synonyms));
     formData.append("date", puzzleDate);
     formData.append("maxGuesses", maxGuesses.toString());
@@ -521,7 +521,7 @@ export default function AdminPage() {
       setPreviewUrl(null);
       setUploadedImageUrl(null);
       setAnswer("");
-      setHints("");
+      setHints([]);
       setSynonyms([]);
       setSourceText("");
       setSourceUrl("");
@@ -804,13 +804,63 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div>
-                  <label style={styles.label}>Hints (comma-separated)</label>
-                  <textarea
-                    value={hints}
-                    onChange={(e) => setHints(e.target.value)}
-                    style={styles.textarea}
-                    placeholder="This map shows economic data, The data is measured in dollars"
-                  />
+                  <label style={styles.label}>Hints ({hints.length})</label>
+                  {hints.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "8px" }}>
+                      {hints.map((hint, index) => (
+                        <div key={index} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <input
+                            type="text"
+                            value={hint}
+                            onChange={(e) => {
+                              const newHints = [...hints];
+                              newHints[index] = e.target.value;
+                              setHints(newHints);
+                            }}
+                            style={{ ...styles.input, flex: 1 }}
+                            placeholder={`Hint ${index + 1}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setHints(hints.filter((_, i) => i !== index))}
+                            style={styles.buttonDanger}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="text"
+                      placeholder="Add a hint..."
+                      style={{ ...styles.input, flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            setHints([...hints, input.value.trim()]);
+                            input.value = "";
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
+                        if (input.value.trim()) {
+                          setHints([...hints, input.value.trim()]);
+                          input.value = "";
+                        }
+                      }}
+                      style={{ ...styles.button, ...styles.buttonSecondary, ...styles.buttonSmall }}
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: "16px" }}>
                   <div style={{ flex: 1 }}>

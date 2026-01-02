@@ -303,6 +303,31 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: "#8b5cf6",
     color: "white",
   },
+  tabBar: {
+    display: "flex",
+    gap: "4px",
+    marginBottom: "12px",
+    backgroundColor: "var(--border)",
+    padding: "4px",
+    borderRadius: "8px",
+  },
+  tabBtn: {
+    flex: 1,
+    padding: "8px 12px",
+    fontSize: "0.75rem",
+    fontWeight: 500,
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    color: "var(--muted)",
+    transition: "all 0.2s",
+  },
+  tabBtnActive: {
+    backgroundColor: "var(--card-bg)",
+    color: "var(--foreground)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+  },
 };
 
 export default function CalendarView({ password }: Props) {
@@ -318,6 +343,7 @@ export default function CalendarView({ password }: Props) {
   const [allPuzzles, setAllPuzzles] = useState<Puzzle[]>([]);
   const [selectedPuzzleId, setSelectedPuzzleId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [assignTab, setAssignTab] = useState<"unscheduled" | "scheduled">("unscheduled");
 
   // Edit modal state
   const [editingPuzzle, setEditingPuzzle] = useState<PuzzleDetails | null>(null);
@@ -594,6 +620,28 @@ export default function CalendarView({ password }: Props) {
               Assign Puzzle for {selectedDate}
             </h3>
 
+            {/* Tabs */}
+            <div style={styles.tabBar}>
+              <button
+                onClick={() => setAssignTab("unscheduled")}
+                style={{
+                  ...styles.tabBtn,
+                  ...(assignTab === "unscheduled" ? styles.tabBtnActive : {}),
+                }}
+              >
+                Unscheduled ({allPuzzles.filter(p => !p.scheduledDate).length})
+              </button>
+              <button
+                onClick={() => setAssignTab("scheduled")}
+                style={{
+                  ...styles.tabBtn,
+                  ...(assignTab === "scheduled" ? styles.tabBtnActive : {}),
+                }}
+              >
+                Scheduled ({allPuzzles.filter(p => p.scheduledDate).length})
+              </button>
+            </div>
+
             <div style={{ maxHeight: "300px", overflow: "auto" }}>
               {/* Unassign option */}
               <div
@@ -611,7 +659,9 @@ export default function CalendarView({ password }: Props) {
                 </div>
               </div>
 
-              {allPuzzles.map((puzzle) => (
+              {allPuzzles
+                .filter(p => assignTab === "unscheduled" ? !p.scheduledDate : !!p.scheduledDate)
+                .map((puzzle) => (
                 <div
                   key={puzzle.id}
                   onClick={() => setSelectedPuzzleId(puzzle.id)}
@@ -629,15 +679,21 @@ export default function CalendarView({ password }: Props) {
                     <div style={styles.puzzleOptionId}>{puzzle.id}</div>
                     <div style={styles.puzzleOptionAnswer}>
                       {puzzle.answer}
-                      {puzzle.scheduledDate && puzzle.scheduledDate !== selectedDate && (
-                        <span style={{ color: "var(--error)" }}>
-                          {" "}(scheduled for {puzzle.scheduledDate})
+                      {puzzle.scheduledDate && (
+                        <span style={{ color: "var(--muted)", fontSize: "0.6875rem" }}>
+                          {" "}(currently: {puzzle.scheduledDate})
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
               ))}
+
+              {allPuzzles.filter(p => assignTab === "unscheduled" ? !p.scheduledDate : !!p.scheduledDate).length === 0 && (
+                <div style={{ padding: "16px", textAlign: "center", color: "var(--muted)" }}>
+                  No {assignTab} puzzles
+                </div>
+              )}
             </div>
 
             <div style={styles.buttonRow}>
