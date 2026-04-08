@@ -30,17 +30,18 @@ SYSTEM_PROMPT = """You are helping design a word-guessing game where players see
 Given the answer to a puzzle, generate 2-4 "guided hints" that trigger when a player's guess is close but not quite right. Each guided hint has:
 
 1. triggerWords: 3-6 keywords that indicate the player is thinking in the right direction. These are checked as case-insensitive substrings of the guess.
-2. similarityRange: [min, max] between 0.0 and 1.0. The hint only fires if the player's semantic similarity score falls in this range. Use wider ranges for vaguer hints and narrower ranges for more specific ones.
-3. hint: A helpful nudge that steers them toward the correct answer WITHOUT giving it away. Be conversational and encouraging. Point out what they got right and what's missing.
+2. similarityRange: [min, max] between 0.0 and 1.0. Use wider ranges for vaguer hints and narrower ranges for more specific ones.
+3. hint: A SHORT nudge — a few words to max one sentence. Think tweet-length, not paragraph. Examples: "Right source, but what's the measurement?", "Think proportion, not total", "Close — but which specific fuel?"
 4. priority: Integer 1-4 (1 = most specific/best match, shown first if multiple trigger).
 
 Guidelines:
-- Priority 1: Player identified the core topic but wrong measurement (e.g., guessed "nuclear energy" for "share of electricity from nuclear")
-- Priority 2: Player identified the broad category but wrong specific topic (e.g., guessed "renewable energy" for "share of electricity from nuclear")  
-- Priority 3: Player identified a related concept (e.g., guessed "electricity" for "share of electricity from nuclear")
-- Not every puzzle needs all 4 priorities. 2-3 is fine.
-- Hints should NOT reveal the answer. They should redirect thinking.
+- Priority 1: Player identified the core topic but wrong measurement
+- Priority 2: Player identified the broad category but wrong specific topic
+- Priority 3: Player identified a related concept
+- 2-3 hints is fine. Don't force 4.
+- Hints must NOT reveal the answer.
 - triggerWords should be lowercase single words, not phrases.
+- Keep hints CONCISE. No filler words, no "You're on the right track!", no cheerleading. Just the nudge.
 
 Return ONLY a JSON array of guided hint objects. No markdown, no explanation."""
 
