@@ -105,7 +105,7 @@ async def submit_guess(
 
     # Gate the embedding API call: skip if fuzzy already gives a definitive correct answer
     if best_fuzzy >= 0.90:
-        best_similarity = best_fuzzy * 0.9  # consistent with the formula below
+        best_similarity = best_fuzzy
     else:
         # Calculate embedding similarity for UI display
         guess_embedding = await embedding_service.embed(guess_text)
@@ -118,7 +118,7 @@ async def submit_guess(
                     best_similarity = variant_similarity
 
     # Take the best of fuzzy and embedding similarity for display
-    similarity = max(best_similarity, best_fuzzy * 0.9)
+    similarity = max(best_similarity, best_fuzzy)
 
     # Determine correctness - greedy approach:
     # 1. If fuzzy or embedding is good enough, count as correct immediately

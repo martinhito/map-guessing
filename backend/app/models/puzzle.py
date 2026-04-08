@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import List, Optional, Literal
 
 
@@ -16,8 +16,20 @@ class PuzzleMetadata(BaseModel):
     maxGuesses: int = 5
     similarityThreshold: float = 0.95
     answerEmbedding: List[float]  # Keep for backwards compatibility
-    answerVariants: Optional[List[AnswerVariant]] = None  # New: synonyms with embeddings
+    answerEmbeddings: Optional[List[dict]] = None  # Raw from S3: [{text, embedding}, ...]
+    answerVariants: Optional[List[AnswerVariant]] = None  # Parsed variants
     hints: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def _populate_variants_from_embeddings(self) -> "PuzzleMetadata":
+        """Map answerEmbeddings (from upload script) into answerVariants if not already set."""
+        if not self.answerVariants and self.answerEmbeddings:
+            self.answerVariants = [
+                AnswerVariant(text=e["text"], embedding=e["embedding"])
+                for e in self.answerEmbeddings
+                if "text" in e and "embedding" in e
+            ]
+        return self
     # Similarity checking mode: "embedding" uses vector similarity, "llm" uses GPT-4o-mini
     similarityMode: Literal["embedding", "llm"] = "embedding"
     # Source attribution
