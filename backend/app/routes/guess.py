@@ -1,24 +1,36 @@
+import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Cookie, Header, HTTPException
+from fastapi import APIRouter, Depends, Cookie, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 from rapidfuzz import fuzz
 
+from app.config import get_settings
 from app.db.database import get_db
+from app.limiter import limiter
 from app.models.puzzle import GuessRequest, GuessResponse
 from app.services.s3 import get_s3_service, S3PuzzleService
 from app.services.embedding import get_embedding_service, EmbeddingService
-from app.services.llm import get_llm_service, LLMService
+from app.services.llm import get_llm_service, LLMService, LLMUnavailableError
 from app.services.similarity import cosine_similarity
 from app.services.attempts import AttemptService
 
 router = APIRouter(prefix="/api", tags=["guess"])
 
+_SAFE_PUZZLE_ID = re.compile(r"^[\w-]{1,64}$")
+
+
+def _validate_puzzle_id(puzzle_id: str) -> None:
+    if not _SAFE_PUZZLE_ID.match(puzzle_id):
+        raise HTTPException(status_code=400, detail="Invalid puzzle ID format")
+
 
 @router.post("/puzzle/{puzzle_id}/guess", response_model=GuessResponse)
+@limiter.limit("60/minute")
 async def submit_guess(
+    request: Request,
     puzzle_id: str,
-    request: GuessRequest,
+    body: GuessRequest,
     player_id: Optional[str] = Cookie(None),
     x_player_id: Optional[str] = Header(None),
     s3_service: S3PuzzleService = Depends(get_s3_service),
@@ -27,12 +39,14 @@ async def submit_guess(
     db: Session = Depends(get_db),
 ):
     """Submit a guess and get similarity score."""
+    _validate_puzzle_id(puzzle_id)
+
     # Accept player ID from header (mobile) or cookie (desktop)
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")
 
-    if not request.guess or not request.guess.strip():
+    if not body.guess or not body.guess.strip():
         raise HTTPException(status_code=400, detail="Guess cannot be empty")
 
     # Get puzzle data
@@ -73,7 +87,7 @@ async def submit_guess(
         )
 
     # Calculate similarity against all answer variants
-    guess_text = request.guess.strip().lower()
+    guess_text = body.guess.strip().lower()
 
     # First, check fuzzy string match (catches typos like "untied states" -> "united states")
     best_fuzzy = 0.0
@@ -89,15 +103,19 @@ async def submit_guess(
         if fuzzy_score > best_fuzzy:
             best_fuzzy = fuzzy_score
 
-    # Always calculate embedding similarity for UI display
-    guess_embedding = await embedding_service.embed(guess_text)
-    best_similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
+    # Gate the embedding API call: skip if fuzzy already gives a definitive correct answer
+    if best_fuzzy >= 0.90:
+        best_similarity = best_fuzzy * 0.9  # consistent with the formula below
+    else:
+        # Calculate embedding similarity for UI display
+        guess_embedding = await embedding_service.embed(guess_text)
+        best_similarity = cosine_similarity(puzzle.answerEmbedding, guess_embedding)
 
-    if puzzle.answerVariants:
-        for variant in puzzle.answerVariants:
-            variant_similarity = cosine_similarity(variant.embedding, guess_embedding)
-            if variant_similarity > best_similarity:
-                best_similarity = variant_similarity
+        if puzzle.answerVariants:
+            for variant in puzzle.answerVariants:
+                variant_similarity = cosine_similarity(variant.embedding, guess_embedding)
+                if variant_similarity > best_similarity:
+                    best_similarity = variant_similarity
 
     # Take the best of fuzzy and embedding similarity for display
     similarity = max(best_similarity, best_fuzzy * 0.9)
@@ -111,11 +129,17 @@ async def submit_guess(
         similarity = max(similarity, puzzle.similarityThreshold)
     elif puzzle.similarityMode == "llm":
         # Slow path: call LLM only if embedding wasn't good enough
-        is_correct, llm_confidence = await llm_service.check_guess_match(
-            answer=puzzle.answer,
-            guess=guess_text,
-            variants=variant_texts if variant_texts else None,
-        )
+        try:
+            is_correct, llm_confidence = await llm_service.check_guess_match(
+                answer=puzzle.answer,
+                guess=guess_text,
+                variants=variant_texts if variant_texts else None,
+            )
+        except LLMUnavailableError:
+            raise HTTPException(
+                status_code=503,
+                detail="Guess evaluation service temporarily unavailable. Please try again.",
+            )
         # If LLM says correct, ensure similarity shows as high
         if is_correct:
             similarity = max(similarity, puzzle.similarityThreshold)
@@ -161,7 +185,13 @@ async def reset_game(
     x_player_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
-    """Reset game state for debugging (localhost only)."""
+    """Reset game state for debugging. Only available when ALLOW_GAME_RESET=true."""
+    settings = get_settings()
+    if not settings.allow_game_reset:
+        raise HTTPException(status_code=403, detail="Game reset is not enabled on this server")
+
+    _validate_puzzle_id(puzzle_id)
+
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")

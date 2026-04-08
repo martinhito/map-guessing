@@ -1,7 +1,10 @@
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
+import boto3
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header
 from pydantic import BaseModel
 
@@ -13,15 +16,32 @@ from app.models.puzzle import PuzzleIndexEntry
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-# Simple password authentication
-ADMIN_PASSWORD = "sydneyannerocks123"
+_SAFE_PUZZLE_ID = re.compile(r"^[\w-]{1,64}$")
+
+
+def _get_admin_password() -> str:
+    return get_settings().admin_password
 
 
 def verify_admin(x_admin_password: Optional[str] = Header(None)):
     """Verify admin password from header."""
-    if x_admin_password != ADMIN_PASSWORD:
+    if x_admin_password != _get_admin_password():
         raise HTTPException(status_code=401, detail="Invalid admin password")
     return True
+
+
+def _validate_source_url(url: Optional[str]) -> Optional[str]:
+    """Validate that a URL uses http or https scheme. Returns cleaned URL or None."""
+    if not url or not url.strip():
+        return None
+    cleaned = url.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=400,
+            detail="sourceUrl must use http or https scheme",
+        )
+    return cleaned
 
 
 class PuzzleCreateRequest(BaseModel):
@@ -42,9 +62,9 @@ class PuzzleCreateResponse(BaseModel):
 @router.post("/verify")
 async def verify_password(x_admin_password: Optional[str] = Header(None)):
     """Verify admin password."""
-    if x_admin_password == ADMIN_PASSWORD:
+    if x_admin_password == _get_admin_password():
         return {"valid": True}
-    return {"valid": False}
+    raise HTTPException(status_code=401, detail="Invalid admin password")
 
 
 @router.post("/generate-synonyms")
@@ -64,6 +84,7 @@ async def upload_image(
     file: UploadFile = File(...),
     date: str = Form(None),
     _: bool = Depends(verify_admin),
+    s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Upload an image to S3 and return the URL."""
     settings = get_settings()
@@ -91,18 +112,10 @@ async def upload_image(
     # Read file content
     content = await file.read()
 
-    # Upload to S3
-    import boto3
-    s3_client = boto3.client(
-        "s3",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
-
+    # Upload to S3 using the service's shared client
     image_key = f"{settings.s3_puzzle_prefix}images/{puzzle_date}{extension}"
 
-    s3_client.put_object(
+    s3_service.s3_client.put_object(
         Bucket=settings.s3_bucket_name,
         Key=image_key,
         Body=content,
@@ -134,12 +147,22 @@ async def create_puzzle(
     sourceUrl: str = Form(None),  # Source link (shown after game ends)
     _: bool = Depends(verify_admin),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
+    s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Create a puzzle with the given image and answer."""
     settings = get_settings()
 
-    # Determine puzzle date
+    # Determine puzzle date / ID
     puzzle_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Duplicate-ID guard: reject if a puzzle with this ID already exists in the index
+    index = s3_service.get_puzzle_index()
+    if any(p.id == puzzle_date for p in index.puzzles):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A puzzle with ID '{puzzle_date}' already exists. "
+                   "Use the update endpoint to modify it, or choose a different date/ID.",
+        )
 
     # Parse hints (JSON array or comma-separated for backwards compatibility)
     hints_list = []
@@ -189,9 +212,9 @@ async def create_puzzle(
     scheduled = scheduledDate if scheduledDate and scheduledDate.strip() else None
     created_at = datetime.now(timezone.utc).isoformat()
 
-    # Parse source fields
+    # Parse and validate source fields
     source_text = sourceText.strip() if sourceText and sourceText.strip() else None
-    source_url = sourceUrl.strip() if sourceUrl and sourceUrl.strip() else None
+    source_url = _validate_source_url(sourceUrl)
 
     # Validate similarity mode
     sim_mode = similarityMode if similarityMode in ("embedding", "llm") else "embedding"
@@ -216,19 +239,11 @@ async def create_puzzle(
         "scheduledDate": scheduled,
     }
 
-    # Upload to S3
-    import boto3
-    s3_client = boto3.client(
-        "s3",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
-
+    # Upload to S3 using the service's shared client
     json_key = f"{settings.s3_puzzle_prefix}{puzzle_date}.json"
     json_content = json.dumps(puzzle_data, indent=2)
 
-    s3_client.put_object(
+    s3_service.s3_client.put_object(
         Bucket=settings.s3_bucket_name,
         Key=json_key,
         Body=json_content.encode("utf-8"),
@@ -238,7 +253,6 @@ async def create_puzzle(
     # Add puzzle to the index
     from app.models.puzzle import PuzzleMetadata
     puzzle = PuzzleMetadata(**puzzle_data)
-    s3_service = get_s3_service()
     s3_service.add_puzzle_to_index(puzzle)
 
     return PuzzleCreateResponse(
@@ -247,88 +261,6 @@ async def create_puzzle(
         imageUrl=imageUrl,
         message=f"Puzzle created successfully for {puzzle_date}",
     )
-
-
-@router.get("/puzzles")
-async def list_puzzles(
-    _: bool = Depends(verify_admin),
-):
-    """List all available puzzles."""
-    settings = get_settings()
-
-    import boto3
-    s3_client = boto3.client(
-        "s3",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
-
-    try:
-        response = s3_client.list_objects_v2(
-            Bucket=settings.s3_bucket_name,
-            Prefix=settings.s3_puzzle_prefix,
-        )
-
-        puzzles = []
-        for obj in response.get("Contents", []):
-            key = obj["Key"]
-            if key.endswith(".json"):
-                puzzle_id = key.replace(settings.s3_puzzle_prefix, "").replace(".json", "")
-                puzzles.append({
-                    "id": puzzle_id,
-                    "lastModified": obj["LastModified"].isoformat(),
-                })
-
-        # Sort by ID (date) descending
-        puzzles.sort(key=lambda x: x["id"], reverse=True)
-
-        # Get active puzzle ID
-        s3_service = get_s3_service()
-        active_id = s3_service.get_active_puzzle_id()
-
-        return {"puzzles": puzzles, "activePuzzleId": active_id}
-    except Exception as e:
-        return {"puzzles": [], "error": str(e)}
-
-
-@router.get("/active-puzzle")
-async def get_active_puzzle(
-    _: bool = Depends(verify_admin),
-):
-    """Get the currently active puzzle ID."""
-    s3_service = get_s3_service()
-    active_id = s3_service.get_active_puzzle_id()
-    today_id = s3_service.get_today_puzzle_id()
-
-    return {
-        "activePuzzleId": active_id,
-        "effectivePuzzleId": active_id or today_id,
-        "todayPuzzleId": today_id,
-    }
-
-
-@router.post("/active-puzzle")
-async def set_active_puzzle(
-    puzzleId: Optional[str] = Form(None),
-    _: bool = Depends(verify_admin),
-):
-    """Set the active puzzle ID. Pass empty/null to clear and use date-based default."""
-    s3_service = get_s3_service()
-
-    # Empty string or None clears the active puzzle
-    puzzle_id = puzzleId if puzzleId and puzzleId.strip() else None
-
-    s3_service.set_active_puzzle_id(puzzle_id)
-
-    today_id = s3_service.get_today_puzzle_id()
-
-    return {
-        "success": True,
-        "activePuzzleId": puzzle_id,
-        "effectivePuzzleId": puzzle_id or today_id,
-        "message": f"Active puzzle set to {puzzle_id}" if puzzle_id else "Active puzzle cleared (using date-based default)",
-    }
 
 
 # --- Dual Game Mode Endpoints ---
@@ -449,10 +381,10 @@ async def update_puzzle(
     scheduledDate: str = Form(None),
     _: bool = Depends(verify_admin),
     embedding_service: EmbeddingService = Depends(get_embedding_service),
+    s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Update an existing puzzle's metadata."""
     settings = get_settings()
-    s3_service = get_s3_service()
 
     # Get existing puzzle
     try:
@@ -504,9 +436,9 @@ async def update_puzzle(
         answer_embedding = existing.answerEmbedding
         answer_variants = [v.model_dump() for v in existing.answerVariants] if existing.answerVariants else []
 
-    # Parse optional fields
+    # Parse and validate optional fields
     source_text = sourceText.strip() if sourceText and sourceText.strip() else None
-    source_url = sourceUrl.strip() if sourceUrl and sourceUrl.strip() else None
+    source_url = _validate_source_url(sourceUrl)
     scheduled = scheduledDate if scheduledDate and scheduledDate.strip() else None
     sim_mode = similarityMode if similarityMode in ("embedding", "llm") else "embedding"
 
@@ -528,19 +460,11 @@ async def update_puzzle(
         "scheduledDate": scheduled,
     }
 
-    # Upload to S3
-    import boto3
-    s3_client = boto3.client(
-        "s3",
-        region_name=settings.aws_region,
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-    )
-
+    # Upload to S3 using the service's shared client
     json_key = f"{settings.s3_puzzle_prefix}{puzzle_id}.json"
     json_content = json.dumps(puzzle_data, indent=2)
 
-    s3_client.put_object(
+    s3_service.s3_client.put_object(
         Bucket=settings.s3_bucket_name,
         Key=json_key,
         Body=json_content.encode("utf-8"),

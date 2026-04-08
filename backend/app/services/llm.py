@@ -5,6 +5,10 @@ import json
 from app.config import get_settings
 
 
+class LLMUnavailableError(Exception):
+    """Raised when the LLM service is unavailable or returns an unexpected error."""
+
+
 class LLMService:
     """OpenAI chat completion client for generating synonyms."""
 
@@ -177,8 +181,7 @@ Respond with JSON only."""
 
         except Exception as e:
             print(f"LLM guess check error: {e}")
-            # On error, return not correct with 0 confidence
-            return (False, 0.0)
+            raise LLMUnavailableError(f"LLM service unavailable: {e}") from e
 
     async def close(self):
         await self.client.aclose()

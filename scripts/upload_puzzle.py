@@ -67,6 +67,48 @@ def upload_to_s3(
     return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
 
 
+def update_puzzle_index(s3_client, bucket: str, prefix: str, puzzle_data: dict) -> None:
+    """Add or update a puzzle entry in the master index (puzzles/index.json)."""
+    index_key = f"{prefix}index.json"
+
+    # Fetch existing index
+    try:
+        response = s3_client.get_object(Bucket=bucket, Key=index_key)
+        index = json.loads(response["Body"].read().decode("utf-8"))
+    except s3_client.exceptions.NoSuchKey:
+        index = {"puzzles": [], "endlessPool": [], "dailySchedule": {}}
+    except Exception:
+        index = {"puzzles": [], "endlessPool": [], "dailySchedule": {}}
+
+    entry = {
+        "id": puzzle_data["id"],
+        "answer": puzzle_data["answer"],
+        "imageUrl": puzzle_data["imageUrl"],
+        "createdAt": puzzle_data.get("createdAt", ""),
+        "inEndlessPool": puzzle_data.get("inEndlessPool", False),
+        "scheduledDate": puzzle_data.get("scheduledDate"),
+    }
+
+    # Update or append
+    puzzles = index.get("puzzles", [])
+    for i, p in enumerate(puzzles):
+        if p.get("id") == entry["id"]:
+            puzzles[i] = entry
+            break
+    else:
+        puzzles.append(entry)
+    index["puzzles"] = puzzles
+
+    # Persist
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=index_key,
+        Body=json.dumps(index, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+    print(f"Index updated: {index_key}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Upload a map puzzle to S3")
     parser.add_argument("--image", required=True, help="Path to the map image file")
@@ -133,6 +175,7 @@ def main():
     print(f"Embedding calculated ({len(answer_embedding)} dimensions)")
 
     # Create puzzle metadata
+    created_at = datetime.now(timezone.utc).isoformat()
     puzzle_data = {
         "id": puzzle_date,
         "imageUrl": image_url,
@@ -141,6 +184,9 @@ def main():
         "similarityThreshold": args.threshold,
         "answerEmbedding": answer_embedding,
         "hints": args.hints if args.hints else None,
+        "createdAt": created_at,
+        "inEndlessPool": False,
+        "scheduledDate": None,
     }
 
     # Upload puzzle JSON
@@ -149,6 +195,10 @@ def main():
     json_content = json.dumps(puzzle_data, indent=2)
     json_url = upload_to_s3(s3_client, bucket_name, json_key, json_content, "application/json")
     print(f"Metadata uploaded: {json_url}")
+
+    # Update the master index so this puzzle appears in the admin UI
+    print("Updating puzzle index...")
+    update_puzzle_index(s3_client, bucket_name, args.prefix, puzzle_data)
 
     print("\nPuzzle uploaded successfully!")
     print(f"  Puzzle ID: {puzzle_date}")

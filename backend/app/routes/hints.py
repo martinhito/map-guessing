@@ -1,18 +1,29 @@
+import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Cookie, Header, HTTPException
+from fastapi import APIRouter, Depends, Cookie, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.limiter import limiter
 from app.models.puzzle import HintResponse
 from app.services.s3 import get_s3_service, S3PuzzleService
 from app.services.attempts import AttemptService
 
 router = APIRouter(prefix="/api", tags=["hints"])
 
+_SAFE_PUZZLE_ID = re.compile(r"^[\w-]{1,64}$")
+
+
+def _validate_puzzle_id(puzzle_id: str) -> None:
+    if not _SAFE_PUZZLE_ID.match(puzzle_id):
+        raise HTTPException(status_code=400, detail="Invalid puzzle ID format")
+
 
 @router.get("/puzzle/{puzzle_id}/hint", response_model=HintResponse)
+@limiter.limit("60/minute")
 async def get_hint(
+    request: Request,
     puzzle_id: str,
     player_id: Optional[str] = Cookie(None),
     x_player_id: Optional[str] = Header(None),
@@ -20,6 +31,8 @@ async def get_hint(
     db: Session = Depends(get_db),
 ):
     """Get next hint for the puzzle. Costs one guess."""
+    _validate_puzzle_id(puzzle_id)
+
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         raise HTTPException(status_code=400, detail="Player ID required")
@@ -75,6 +88,8 @@ async def get_revealed_hints(
     db: Session = Depends(get_db),
 ):
     """Get all previously revealed hints for the puzzle."""
+    _validate_puzzle_id(puzzle_id)
+
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         return {"hints": [], "hintsRemaining": 0}

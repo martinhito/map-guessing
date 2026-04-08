@@ -27,6 +27,7 @@ class S3PuzzleService:
             aws_secret_access_key=self.settings.aws_secret_access_key,
         )
         self._puzzle_cache: Dict[str, tuple[PuzzleMetadata, float]] = {}
+        self._active_puzzle_cache: tuple[Optional[str], float] | None = None
 
     def get_puzzle(self, puzzle_id: Optional[str] = None) -> PuzzleMetadata:
         """Fetch puzzle from S3 with caching."""
@@ -75,7 +76,13 @@ class S3PuzzleService:
         return datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
 
     def get_active_puzzle_id(self) -> Optional[str]:
-        """Get the currently active puzzle ID from S3."""
+        """Get the currently active puzzle ID from S3, cached with CACHE_TTL."""
+        now = time.time()
+        if self._active_puzzle_cache is not None:
+            cached_id, cached_time = self._active_puzzle_cache
+            if now - cached_time < self.CACHE_TTL:
+                return cached_id
+
         try:
             response = self.s3_client.get_object(
                 Bucket=self.settings.s3_bucket_name,
@@ -83,12 +90,16 @@ class S3PuzzleService:
             )
             content = response["Body"].read().decode("utf-8")
             data = json.loads(content)
-            return data.get("activePuzzleId")
+            result = data.get("activePuzzleId")
         except ClientError:
-            return None
+            result = None
+
+        self._active_puzzle_cache = (result, now)
+        return result
 
     def set_active_puzzle_id(self, puzzle_id: Optional[str]) -> None:
         """Set the active puzzle ID in S3. Pass None to clear."""
+        self._active_puzzle_cache = None  # Invalidate cache
         if puzzle_id:
             content = json.dumps({"activePuzzleId": puzzle_id})
             self.s3_client.put_object(

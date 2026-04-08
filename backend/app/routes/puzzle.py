@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 from uuid import uuid4
 
@@ -10,6 +11,13 @@ from app.services.s3 import get_s3_service, S3PuzzleService
 from app.services.attempts import AttemptService
 
 router = APIRouter(prefix="/api", tags=["puzzle"])
+
+_SAFE_PUZZLE_ID = re.compile(r"^[\w-]{1,64}$")
+
+
+def _validate_puzzle_id(puzzle_id: str) -> None:
+    if not _SAFE_PUZZLE_ID.match(puzzle_id):
+        raise HTTPException(status_code=400, detail="Invalid puzzle ID format")
 
 
 def get_or_set_player_id(
@@ -80,6 +88,7 @@ async def get_puzzle_by_id(
     s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Get a specific puzzle by ID."""
+    _validate_puzzle_id(puzzle_id)
     player_id = get_or_set_player_id(response, player_id, x_player_id)
 
     try:
@@ -109,6 +118,7 @@ async def get_user_attempts(
     s3_service: S3PuzzleService = Depends(get_s3_service),
 ):
     """Get user's attempts for a specific puzzle."""
+    _validate_puzzle_id(puzzle_id)
     effective_player_id = x_player_id or player_id
     if not effective_player_id:
         return AttemptsResponse(attempts=[], gameState=None)
@@ -137,7 +147,7 @@ async def get_user_attempts(
                 similarity=a.similarity_score,
                 correct=a.is_correct,
                 timestamp=a.created_at.isoformat(),
-                isHint=getattr(a, 'is_hint', False),
+                isHint=a.is_hint,
             )
             for a in attempts
         ],

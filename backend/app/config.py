@@ -21,9 +21,15 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./map_guessing.db"
 
+    # Admin
+    admin_password: str = "change-me-in-production"
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+
+    # Feature flags
+    allow_game_reset: bool = False  # Set to true in dev to allow game state resets
 
     class Config:
         env_file = ".env"

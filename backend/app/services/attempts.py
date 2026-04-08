@@ -19,7 +19,7 @@ class AttemptService:
                 UserAttempt.user_id == user_id,
                 UserAttempt.puzzle_date == puzzle_date,
             )
-            .order_by(UserAttempt.created_at.desc())
+            .order_by(UserAttempt.created_at.asc())
             .all()
         )
 
