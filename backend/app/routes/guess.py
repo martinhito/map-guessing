@@ -147,6 +147,38 @@ async def submit_guess(
         # Embedding mode but didn't meet threshold
         is_correct = False
 
+    # Check for guided hints (free nudges, don't cost a guess)
+    guided_hint_text = None
+    if not is_correct and puzzle.guidedHints:
+        # Determine which hints have already been shown by checking prior attempts
+        prior_attempts = attempt_service.get_user_attempts(effective_player_id, puzzle_id)
+        shown_hints: set[str] = set()
+        for prior in prior_attempts:
+            if prior.is_hint:
+                continue
+            prior_guess = prior.guess_text.lower()
+            prior_sim = prior.similarity_score
+            for gh in puzzle.guidedHints:
+                min_sim, max_sim = gh.similarityRange
+                if min_sim <= prior_sim <= max_sim and any(
+                    word.lower() in prior_guess for word in gh.triggerWords
+                ):
+                    shown_hints.add(gh.hint)
+
+        # Find best (lowest priority) matching hint not yet shown
+        best_guided: tuple[int, str] | None = None
+        for gh in puzzle.guidedHints:
+            if gh.hint in shown_hints:
+                continue
+            min_sim, max_sim = gh.similarityRange
+            if min_sim <= similarity <= max_sim and any(
+                word.lower() in guess_text for word in gh.triggerWords
+            ):
+                if best_guided is None or gh.priority < best_guided[0]:
+                    best_guided = (gh.priority, gh.hint)
+        if best_guided is not None:
+            guided_hint_text = best_guided[1]
+
     # Record attempt
     updated_state = attempt_service.record_attempt(
         user_id=effective_player_id,
@@ -175,6 +207,7 @@ async def submit_guess(
         answer=puzzle.answer if game_over else None,
         attemptsUsed=updated_state.total_guesses,
         sourceUrl=puzzle.sourceUrl if game_over else None,
+        guidedHint=guided_hint_text,
     )
 
 

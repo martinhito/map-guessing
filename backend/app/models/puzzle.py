@@ -1,11 +1,19 @@
 from pydantic import BaseModel, model_validator
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Tuple
 
 
 class AnswerVariant(BaseModel):
     """An answer variant with its embedding"""
     text: str
     embedding: List[float]
+
+
+class GuidedHint(BaseModel):
+    """A hint that triggers based on guess content and similarity score"""
+    triggerWords: List[str]
+    similarityRange: Tuple[float, float]  # [min, max]
+    hint: str
+    priority: int = 1
 
 
 class PuzzleMetadata(BaseModel):
@@ -19,6 +27,7 @@ class PuzzleMetadata(BaseModel):
     answerEmbeddings: Optional[List[dict]] = None  # Raw from S3: [{text, embedding}, ...]
     answerVariants: Optional[List[AnswerVariant]] = None  # Parsed variants
     hints: Optional[List[str]] = None
+    guidedHints: Optional[List[GuidedHint]] = None
 
     @model_validator(mode="after")
     def _populate_variants_from_embeddings(self) -> "PuzzleMetadata":
@@ -82,6 +91,7 @@ class GuessResponse(BaseModel):
     answer: Optional[str] = None
     attemptsUsed: int
     sourceUrl: Optional[str] = None  # Only shown when game is over
+    guidedHint: Optional[str] = None  # Free hint nudge, null if none triggered
 
 
 class HintResponse(BaseModel):
