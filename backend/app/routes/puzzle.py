@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Response, Cookie, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.puzzle import PuzzleResponse, AttemptsResponse, AttemptInfo
+from app.db.models import DailyGameState
+from app.models.puzzle import PuzzleResponse, AttemptsResponse, AttemptInfo, PlayerStatsResponse
 from app.services.s3 import get_s3_service, S3PuzzleService
 from app.services.attempts import AttemptService
 
@@ -106,6 +107,78 @@ async def get_puzzle_by_id(
         prompt="Guess what this map represents",
         hintsAvailable=hints_count,
         sourceText=puzzle.sourceText,
+    )
+
+
+@router.get("/player/stats", response_model=PlayerStatsResponse)
+async def get_player_stats(
+    player_id: Optional[str] = Cookie(None),
+    x_player_id: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Get player's overall stats: games played, win rate, streaks, guess distribution."""
+    effective_player_id = x_player_id or player_id
+    if not effective_player_id:
+        raise HTTPException(status_code=400, detail="Player ID required")
+
+    # Get all game states for this player
+    games = (
+        db.query(DailyGameState)
+        .filter(DailyGameState.user_id == effective_player_id)
+        .order_by(DailyGameState.puzzle_date.asc())
+        .all()
+    )
+
+    total_played = len(games)
+    solved_games = [g for g in games if g.solved]
+    total_solved = len(solved_games)
+    success_rate = total_solved / total_played if total_played > 0 else 0.0
+
+    # Guess distribution (only solved games)
+    dist: dict[int, int] = {}
+    total_guesses_solved = 0
+    for g in solved_games:
+        n = g.total_guesses
+        dist[n] = dist.get(n, 0) + 1
+        total_guesses_solved += n
+    avg_guesses = total_guesses_solved / total_solved if total_solved > 0 else 0.0
+
+    # Total hints used
+    hints_used = sum(g.hints_revealed for g in games)
+
+    # Streak calculation (based on consecutive solved dates)
+    current_streak = 0
+    max_streak = 0
+    streak = 0
+    sorted_dates = sorted(set(g.puzzle_date for g in games))
+    solved_dates = set(g.puzzle_date for g in solved_games)
+
+    from datetime import date, timedelta
+    for i, d in enumerate(sorted_dates):
+        if d in solved_dates:
+            if i == 0:
+                streak = 1
+            else:
+                prev = date.fromisoformat(sorted_dates[i - 1])
+                curr = date.fromisoformat(d)
+                if (curr - prev).days == 1:
+                    streak += 1
+                else:
+                    streak = 1
+        else:
+            streak = 0
+        max_streak = max(max_streak, streak)
+    current_streak = streak
+
+    return PlayerStatsResponse(
+        totalPlayed=total_played,
+        totalSolved=total_solved,
+        successRate=round(success_rate, 3),
+        currentStreak=current_streak,
+        maxStreak=max_streak,
+        averageGuesses=round(avg_guesses, 1),
+        guessDistribution=dist,
+        hintsUsed=hints_used,
     )
 
 

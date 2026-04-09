@@ -102,6 +102,18 @@ class HintResponse(BaseModel):
     gameOver: bool = False  # True if this hint used the last guess
 
 
+class PlayerStatsResponse(BaseModel):
+    """Player statistics."""
+    totalPlayed: int
+    totalSolved: int
+    successRate: float  # 0.0 - 1.0
+    currentStreak: int
+    maxStreak: int
+    averageGuesses: float  # average guesses on solved puzzles
+    guessDistribution: dict[int, int]  # {1: count, 2: count, ...}
+    hintsUsed: int
+
+
 class AttemptInfo(BaseModel):
     guess: str  # For hints, this is the hint text
     similarity: float  # 0 for hints
